@@ -17,33 +17,17 @@ set(params
     -Wno-reorder
 )
 
-string(TOUPPER ${project_name} project_name_upper)                                                                                                                                                                                                          
-option(${project_name_upper}_BUILD_EXAMPLES "Build examples" OFF)                                                                                                                                                                                           
-option(${project_name_upper}_ENABLE_TESTS "Enable tests" OFF)                                                                                                                                                                                               
+string(TOUPPER ${project_name} project_name_upper)
+option(${project_name_upper}_BUILD_EXAMPLES "Build examples" OFF)
+option(${project_name_upper}_ENABLE_TESTS "Enable tests" OFF)
 include(FetchContent)
 
 # --------------------------------------------------------------------------------------------------
 set(ext_deps)
 
-FetchContent_Declare(concord GIT_REPOSITORY https://github.com/smolfetch/concord.git GIT_TAG 2.0.0)
+FetchContent_Declare(concord GIT_REPOSITORY https://github.com/onlyhead/concord.git GIT_TAG 2.0.0)
 FetchContent_MakeAvailable(concord)
 list(APPEND ext_deps concord::concord)
-
-FetchContent_Declare(pigment GIT_REPOSITORY https://github.com/smolfetch/pigment.git GIT_TAG 0.3.0)
-FetchContent_MakeAvailable(pigment)
-list(APPEND ext_deps pigment::pigment)
-
-FetchContent_Declare(entropy GIT_REPOSITORY https://github.com/smolfetch/entropy.git GIT_TAG 0.1.0)
-FetchContent_MakeAvailable(entropy)
-list(APPEND ext_deps entropy::entropy)
-
-FetchContent_Declare(geoson GIT_REPOSITORY https://github.com/smolfetch/geoson.git GIT_TAG 1.1.0)
-FetchContent_MakeAvailable(geoson)
-list(APPEND ext_deps geoson::geoson) 
-
-FetchContent_Declare(geotiv GIT_REPOSITORY https://github.com/smolfetch/geotiv.git GIT_TAG 1.0.0)
-FetchContent_MakeAvailable(geotiv)
-list(APPEND ext_deps geotiv::geotiv)
 
 # --------------------------------------------------------------------------------------------------
 add_library(${project_name} INTERFACE)
@@ -90,11 +74,11 @@ if(${project_name_upper}_BUILD_EXAMPLES)
   FetchContent_Declare(rerun_sdk URL https://github.com/rerun-io/rerun/releases/latest/download/rerun_cpp_sdk.zip)
   FetchContent_MakeAvailable(rerun_sdk)
   list(APPEND ext_deps rerun_sdk)
-  #
-  # FetchContent_Declare(spdlog GIT_REPOSITORY https://github.com/gabime/spdlog.git GIT_TAG v1.15.0)
-  # FetchContent_MakeAvailable(spdlog)
-  # list(APPEND ext_deps spdlog::spdlog)
-  #
+
+  FetchContent_Declare(zoneout GIT_REPOSITORY https://github.com/onlyhead/zoneout.git GIT_TAG 0.0.3)
+  FetchContent_MakeAvailable(zoneout)
+  list(APPEND ext_deps zoneout::zoneout)
+  
   FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz)
   FetchContent_MakeAvailable(json)
   list(APPEND ext_deps nlohmann_json::nlohmann_json)

@@ -3,8 +3,6 @@
 #include <thread>
 
 #include "concord/concord.hpp"
-#include "geoson/geoson.hpp"
-#include "geotiv/geotiv.hpp"
 
 #include "rerun/recording_stream.hpp"
 
@@ -24,37 +22,24 @@ int main() {
         return 1;
     }
 
+    std::vector<concord::WGS> coordinates;
+    coordinates.push_back(concord::WGS(51.98765392402663, 5.660072928621929, 0.0));
+    coordinates.push_back(concord::WGS(51.98816428304869, 5.661754957062072, 0.0));
+    coordinates.push_back(concord::WGS(51.989850316694316, 5.660416700858434, 0.0));
+    coordinates.push_back(concord::WGS(51.990417354104295, 5.662166255987472, 0.0));
+    coordinates.push_back(concord::WGS(51.991078888673854, 5.660969191951295, 0.0));
+    coordinates.push_back(concord::WGS(51.989479848375254, 5.656874619070777, 0.0));
+    coordinates.push_back(concord::WGS(51.988156722216644, 5.657715633290422, 0.0));
+    coordinates.push_back(concord::WGS(51.98765392402663, 5.660072928621929, 0.0));
+
+    concord::Datum world_datum{51.98954034749562, 5.6584737410504715, 53.801823};
     concord::Polygon poly;
-    concord::Datum datum; // Will be set from GeoJSON
-    try {
-        auto fc = geoson::ReadFeatureCollection("misc/field4.geojson");
-        datum = fc.datum; // Use the datum from the GeoJSON file
-        for (auto &f : fc.features) {
-            if (std::get_if<concord::Polygon>(&f.geometry)) {
-                poly = std::get<concord::Polygon>(f.geometry);
-                break;
-            }
-        }
-    } catch (std::exception &e) {
-        std::cerr << "Failed to parse geojson: " << e.what() << "\n";
-        return 1;
+    for (const auto &wgs_coord : coordinates) {
+        auto enu_coord = wgs_coord.toENU(world_datum);
+        poly.addPoint(concord::Point{enu_coord.x, enu_coord.y, enu_coord.z});
     }
 
-    farmtrax::Field field(poly, 0.1, datum, true, 50000.0);
-
-    field.add_noise();
-
-    // geotiv::Layer layer;
-    // layer.grid = field.get_grid(0);
-    // layer.samplesPerPixel = 1;
-    // layer.planarConfig = 1;
-    // geotiv::RasterCollection rc;
-    // rc.datum = concord::Datum();
-    // rc.heading = concord::Euler{0.0, 0.0, 0.0};
-    // rc.resolution = 0.1;
-    // rc.layers.push_back(layer);
-    // std::filesystem::path outPath = "output.tif";
-    // geotiv::WriteRasterCollection(rc, outPath);
+    farmtrax::Field field(poly, 0.1, world_datum, true, 100000.0);
 
     field.gen_field(4.0, 0.0, 3);
     auto num_machines = 2;
@@ -95,7 +80,7 @@ int main() {
     obstacles.push_back(obstacle1);
 
     // Create obstacle avoider
-    farmtrax::ObstacleAvoider avoider(obstacles, datum);
+    farmtrax::ObstacleAvoider avoider(obstacles, world_datum);
 
     std::cout << "Created " << obstacles.size() << " obstacles\n";
 

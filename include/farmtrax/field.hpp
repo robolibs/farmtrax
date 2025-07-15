@@ -27,7 +27,6 @@
 
 #include <concord/concord.hpp>
 #include <concord/geometry/polygon/partitioner.hpp>
-#include <entropy/entropy.hpp>
 
 #include "farmtrax/utils/utils.hpp"
 
@@ -185,7 +184,6 @@ namespace farmtrax {
 
         concord::Partitioner partitioner_;
         concord::Datum datum_{};
-        entropy::NoiseGen noiseGen_;
         std::mt19937 rnd_;
         double overlap_threshold_{0.7};
 
@@ -219,19 +217,6 @@ namespace farmtrax {
 
         const std::vector<Part> &get_parts() const { return parts_; }
         std::vector<Part> &get_parts() { return parts_; }
-
-        void add_noise(std::size_t i = 0) {
-            Grid &g = get_grid(i);
-            noiseGen_.SetNoiseType(entropy::NoiseGen::NoiseType_OpenSimplex2);
-            noiseGen_.SetFrequency(static_cast<float>(resolution_) / 300.0f);
-            noiseGen_.SetSeed(static_cast<int>(rnd_()));
-            for (std::size_t r = 0; r < g.rows(); ++r)
-                for (std::size_t c = 0; c < g.cols(); ++c) {
-                    float n = noiseGen_.GetNoise(static_cast<float>(r), static_cast<float>(c));
-                    float val = (n + 1.0f) * 0.5f;
-                    g(r, c).second = utils::float_to_byte(val);
-                }
-        }
 
         void gen_field(double swath_width, double angle_degrees = 0, int headland_count = 1) {
             for (auto &part : parts_) {

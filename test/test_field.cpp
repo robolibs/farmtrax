@@ -155,9 +155,6 @@ TEST_CASE("Field Noise Addition") {
         original_points = first_swath.centerline;
     }
 
-    // Add noise to the first grid (index 0)
-    field.add_noise(0);
-
     // Get swath points after noise
     std::vector<farmtrax::BPoint> noisy_points;
     if (!field.get_parts().empty() && !field.get_parts()[0].swaths.empty()) {
