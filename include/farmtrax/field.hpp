@@ -167,20 +167,15 @@ namespace farmtrax {
         }
     };
 
-    using Grid = concord::Grid<uint8_t>;
-
     class Field {
       public:
         // Forward declaration of test functions
-        friend double get_resolution(const Field &field);
         friend concord::Datum get_field_datum(const Field &field);
         friend double get_total_field_area(const Field &field);
 
       private:
         concord::Polygon border_;
-        std::vector<Grid> grids_;
         std::vector<Part> parts_;
-        double resolution_{};
 
         concord::Partitioner partitioner_;
         concord::Datum datum_{};
@@ -188,10 +183,9 @@ namespace farmtrax {
         double overlap_threshold_{0.7};
 
       public:
-        Field(const concord::Polygon &border, double resolution, const concord::Datum &datum, bool centred = true,
+        Field(const concord::Polygon &border, const concord::Datum &datum, bool centred = true,
               double area_threshold = 0.5)
-            : resolution_(resolution), border_(border), datum_(datum) {
-            grids_.emplace_back(border_, resolution_, datum_, centred);
+            : border_(border), datum_(datum) {
             partitioner_ = concord::Partitioner(border_);
             auto divisions = partitioner_.partition(area_threshold);
             std::cout << "Split " << divisions.size() << " parts\n";
@@ -201,18 +195,6 @@ namespace farmtrax {
                 p.border = create_ring(poly);
                 parts_.push_back(std::move(p));
             }
-        }
-
-        Grid &get_grid(std::size_t i) {
-            if (i >= grids_.size())
-                throw std::out_of_range("Grid index out of range");
-            return grids_[i];
-        }
-
-        const Grid &get_grid(std::size_t i) const {
-            if (i >= grids_.size())
-                throw std::out_of_range("Grid index out of range");
-            return grids_[i];
         }
 
         const std::vector<Part> &get_parts() const { return parts_; }

@@ -7,7 +7,6 @@
 
 namespace farmtrax {
     // Friend functions declared in Field class
-    inline double get_resolution(const Field &field) { return field.resolution_; }
 
     inline concord::Datum get_field_datum(const Field &field) { return field.datum_; }
 
@@ -42,13 +41,12 @@ TEST_CASE("Field Constructor and Basic Properties") {
     concord::Polygon poly = create_test_polygon(datum);
 
     // Test basic field creation with default parameters
-    farmtrax::Field field(poly, 0.5, datum);
+    farmtrax::Field field(poly, datum);
 
     // Verify the field was created
     CHECK(field.get_parts().size() > 0);
 
     // Check basic field properties
-    CHECK(farmtrax::get_resolution(field) == 0.5);
     CHECK(farmtrax::get_field_datum(field).lat == datum.lat);
     CHECK(farmtrax::get_field_datum(field).lon == datum.lon);
 
@@ -64,7 +62,7 @@ TEST_CASE("Field Partitioning") {
 
     // Create a field with partitioning parameters
     double area_threshold = 1000.0; // Small enough to force partitioning of our 5000 sq.m field
-    farmtrax::Field field(poly, 0.5, datum, true, area_threshold);
+    farmtrax::Field field(poly, datum, true, area_threshold);
 
     // Verify that field was partitioned
     CHECK(field.get_parts().size() > 1);
@@ -81,7 +79,7 @@ TEST_CASE("Field Generation Methods") {
     concord::Polygon poly = create_test_polygon(datum);
 
     // Create a field
-    farmtrax::Field field(poly, 0.5, datum);
+    farmtrax::Field field(poly, datum);
 
     // Test field generation with different parameters
     SUBCASE("Standard field generation") {
@@ -143,7 +141,7 @@ TEST_CASE("Field Noise Addition") {
     concord::Polygon poly = create_test_polygon(datum);
 
     // Create a field
-    farmtrax::Field field(poly, 0.5, datum);
+    farmtrax::Field field(poly, datum);
 
     // Generate the field - use 0 headlands to avoid buffer operation issues
     field.gen_field(10.0, 90.0, 0);

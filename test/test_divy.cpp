@@ -19,7 +19,7 @@ std::shared_ptr<farmtrax::Part> create_test_part(const concord::Datum &datum = c
 
     // Create a field with the polygon - use large area threshold to avoid excessive partitioning
     std::cout << "Debug: Creating field" << std::endl;
-    farmtrax::Field field(poly, 0.5, datum, true, 10000.0); // Large area threshold
+    farmtrax::Field field(poly, datum, true, 10000.0); // Large area threshold
     std::cout << "Debug: Field created" << std::endl;
 
     // Generate field with swaths - use 0 headlands to avoid buffer operation issues

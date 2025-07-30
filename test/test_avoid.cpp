@@ -29,7 +29,7 @@ create_field_with_obstacle(const concord::Datum &datum = concord::Datum{}) {
     concord::Polygon obstacle = create_obstacle(datum);
 
     // Create minimal Field object
-    farmtrax::Field field(field_poly, 0.5, datum, false, 1000.0); // Using large area threshold to avoid partitioning
+    farmtrax::Field field(field_poly, datum, false, 1000.0); // Using large area threshold to avoid partitioning
 
     return {field, obstacle};
 }

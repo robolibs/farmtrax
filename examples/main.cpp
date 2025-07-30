@@ -39,7 +39,7 @@ int main() {
         poly.addPoint(concord::Point{enu_coord.x, enu_coord.y, enu_coord.z});
     }
 
-    farmtrax::Field field(poly, 0.1, world_datum, true, 100000.0);
+    farmtrax::Field field(poly, world_datum, true, 100000.0);
 
     field.gen_field(4.0, 0.0, 3);
     auto num_machines = 2;

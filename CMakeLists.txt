@@ -25,7 +25,7 @@ include(FetchContent)
 # --------------------------------------------------------------------------------------------------
 set(ext_deps)
 
-FetchContent_Declare(concord GIT_REPOSITORY https://github.com/onlyhead/concord.git GIT_TAG 2.0.0)
+FetchContent_Declare(concord GIT_REPOSITORY https://github.com/onlyhead/concord.git GIT_TAG 2.2.2)
 FetchContent_MakeAvailable(concord)
 list(APPEND ext_deps concord::concord)
 
@@ -75,7 +75,19 @@ if(${project_name_upper}_BUILD_EXAMPLES)
   FetchContent_MakeAvailable(rerun_sdk)
   list(APPEND ext_deps rerun_sdk)
 
-  FetchContent_Declare(zoneout GIT_REPOSITORY https://github.com/onlyhead/zoneout.git GIT_TAG 0.0.3)
+  FetchContent_Declare(entropy GIT_REPOSITORY https://github.com/smolfetch/entropy.git GIT_TAG 0.1.0)
+  FetchContent_MakeAvailable(entropy)
+  list(APPEND ext_deps entropy::entropy)
+
+  FetchContent_Declare(geoson GIT_REPOSITORY https://github.com/smolfetch/geoson.git GIT_TAG 1.4.3)
+  FetchContent_MakeAvailable(geoson)
+  list(APPEND ext_deps geoson::geoson) 
+
+  FetchContent_Declare(geotiv GIT_REPOSITORY https://github.com/smolfetch/geotiv.git GIT_TAG 2.0.0)
+  FetchContent_MakeAvailable(geotiv)
+  list(APPEND ext_deps geotiv::geotiv)
+
+  FetchContent_Declare(zoneout GIT_REPOSITORY https://github.com/onlyhead/zoneout.git GIT_TAG 0.2.3)
   FetchContent_MakeAvailable(zoneout)
   list(APPEND ext_deps zoneout::zoneout)
   
@@ -90,7 +102,7 @@ if(${project_name_upper}_BUILD_EXAMPLES)
   list(APPEND sys_deps ${Boost_LIBRARIES})
   
 
-  file(GLOB exe examples/*.cpp)
+  file(GLOB exe CONFIGURE_DEPENDS examples/*.cpp)
 
   # ----------------------------------------------
   set(exec_names)
@@ -132,7 +144,7 @@ if(${project_name_upper}_ENABLE_TESTS)
   )
   FetchContent_MakeAvailable(DocTest)
 
-  file(GLOB test_src test/*.cpp)
+  file(GLOB test_src CONFIGURE_DEPENDS test/*.cpp)
 
   foreach(src_file IN LISTS test_src)
     get_filename_component(test_name "${src_file}" NAME_WE)
