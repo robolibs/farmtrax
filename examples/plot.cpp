@@ -109,7 +109,8 @@ int main() {
     obstacle.addPoint(obstacle.getPoints().front());
     obstacles.push_back(obstacle);
 
-    farmtrax::Field field(boundary, farm.getDatum(), true, 80000.0);
+    // Use equal-area partitioning with target of 80000 sq.m (8 hectares)
+    farmtrax::Field field(boundary, farm.getDatum(), true, 100000.0);
 
     std::cout << "Field border points: " << field.get_border().getPoints().size() << std::endl;
     std::cout << "Field parts: " << field.get_parts().size() << std::endl;
@@ -127,6 +128,9 @@ int main() {
         const auto &part = field.get_parts()[f];
 
         auto part_area = boost::geometry::area(part.boundary.b_polygon);
+        std::cout << "Part " << f << " area: " << part_area << " sq.m (" << part_area / 10000.0 << " hectares)"
+                  << std::endl;
+
         auto fieldPtr = std::make_shared<farmtrax::Part>(field.get_parts()[f]);
         farmtrax::Divy divy(fieldPtr, farmtrax::DivisionType::ALTERNATE, num_machines);
         divy.compute_division();

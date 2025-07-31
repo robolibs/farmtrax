@@ -134,7 +134,7 @@ namespace farmtrax {
     }
 
     struct Part {
-        Ring boundary;  // The boundary polygon of this subdivided part
+        Ring boundary; // The boundary polygon of this subdivided part
         std::vector<Swath> swaths;
         std::vector<Ring> headlands;
 
@@ -184,11 +184,30 @@ namespace farmtrax {
 
       public:
         Field(const concord::Polygon &border, const concord::Datum &datum, bool centred = true,
-              double area_threshold = 0.5)
+              double area_threshold = 0.5, bool use_equal_areas = false)
             : border_(border), datum_(datum) {
             partitioner_ = concord::Partitioner(border_);
-            auto divisions = partitioner_.partition(area_threshold);
-            std::cout << "Split " << divisions.size() << " parts\n";
+
+            std::vector<concord::Polygon> divisions;
+
+            if (use_equal_areas) {
+                // Use the new equal-area partitioning method
+                divisions = partitioner_.partition_equal_areas(area_threshold, 0.25); // 25% tolerance
+            } else {
+                // Use the original max-area partitioning
+                concord::Partitioner::PartitionCriteria criteria;
+                criteria.max_area = area_threshold;
+                criteria.max_aspect_ratio = 2.5;
+                criteria.min_convexity = 0.7;
+                criteria.tooth_threshold = 0.2;
+                criteria.enable_bridge_detection = true;
+                criteria.enable_tooth_detection = true;
+                criteria.enable_aspect_splitting = true;
+
+                divisions = partitioner_.partition(area_threshold, criteria);
+                std::cout << "Split " << divisions.size() << " parts\n";
+            }
+
             parts_.reserve(divisions.size());
             for (auto const &poly : divisions) {
                 Part p;
