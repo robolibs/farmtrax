@@ -69,7 +69,7 @@ TEST_CASE("Field Partitioning") {
 
     // Each part should have area less than or equal to our threshold
     for (const auto &part : field.get_parts()) {
-        double part_area = std::abs(boost::geometry::area(part.border.b_polygon)); // Use absolute value
+        double part_area = std::abs(boost::geometry::area(part.boundary.b_polygon)); // Use absolute value
         CHECK(part_area <= area_threshold);
     }
 }

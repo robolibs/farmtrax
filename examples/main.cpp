@@ -100,7 +100,7 @@ int main() {
         const auto &part = field.get_parts()[f];
 
         // Calculate part area to show partitioning effectiveness
-        auto part_area = boost::geometry::area(part.border.b_polygon);
+        auto part_area = boost::geometry::area(part.boundary.b_polygon);
         std::cout << "Part " << (f + 1) << ": " << std::fixed << std::setprecision(1) << part_area << " sq.m ("
                   << (part_area / 10000.0) << " hectares), " << part.headlands.size() << " headlands, "
                   << part.swaths.size() << " swaths\n";

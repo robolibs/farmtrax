@@ -134,7 +134,7 @@ namespace farmtrax {
     }
 
     struct Part {
-        Ring border;
+        Ring boundary;  // The boundary polygon of this subdivided part
         std::vector<Swath> swaths;
         std::vector<Ring> headlands;
 
@@ -192,24 +192,25 @@ namespace farmtrax {
             parts_.reserve(divisions.size());
             for (auto const &poly : divisions) {
                 Part p;
-                p.border = create_ring(poly);
+                p.boundary = create_ring(poly);
                 parts_.push_back(std::move(p));
             }
         }
 
         const std::vector<Part> &get_parts() const { return parts_; }
         std::vector<Part> &get_parts() { return parts_; }
+        const concord::Polygon &get_border() const { return border_; }
 
         void gen_field(double swath_width, double angle_degrees = 0, int headland_count = 1) {
             for (auto &part : parts_) {
                 part.headlands.clear();
                 part.swaths.clear();
-                part.headlands = generate_headlands(part.border.polygon, swath_width, headland_count);
+                part.headlands = generate_headlands(part.boundary.polygon, swath_width, headland_count);
 
-                // Safe access to headlands - use border if no headlands were generated
+                // Safe access to headlands - use boundary if no headlands were generated
                 concord::Polygon interior = (headland_count > 0 && !part.headlands.empty())
                                                 ? part.headlands.back().polygon
-                                                : part.border.polygon;
+                                                : part.boundary.polygon;
 
                 part.swaths = generate_swaths(swath_width, angle_degrees, interior);
 

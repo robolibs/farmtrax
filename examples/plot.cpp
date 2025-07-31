@@ -106,9 +106,13 @@ int main() {
     auto obstacle = polygon_elements[0].geometry;
     std::cout << "Zone 0 obstacle: " << obstacle.getPoints().size() << " points" << std::endl;
     std::vector<concord::Polygon> obstacles;
+    obstacle.addPoint(obstacle.getPoints().front());
     obstacles.push_back(obstacle);
 
-    farmtrax::Field field(boundary, farm.getDatum(), true, 10000.0);
+    farmtrax::Field field(boundary, farm.getDatum(), true, 80000.0);
+
+    std::cout << "Field border points: " << field.get_border().getPoints().size() << std::endl;
+    std::cout << "Field parts: " << field.get_parts().size() << std::endl;
 
     field.gen_field(4.0, 0.0, 3);
     auto num_machines = 3;
@@ -117,6 +121,18 @@ int main() {
 
     farmtrax::visualize::show_obstacles(obstacles, rec);
     farmtrax::visualize::show_field(field, rec);
+
+    for (size_t f = 0; f < field.get_parts().size(); f++) {
+
+        const auto &part = field.get_parts()[f];
+
+        auto part_area = boost::geometry::area(part.boundary.b_polygon);
+        auto fieldPtr = std::make_shared<farmtrax::Part>(field.get_parts()[f]);
+        farmtrax::Divy divy(fieldPtr, farmtrax::DivisionType::ALTERNATE, num_machines);
+        divy.compute_division();
+
+        farmtrax::visualize::show_divisions(divy, rec, f);
+    }
 
     return 0;
 }
