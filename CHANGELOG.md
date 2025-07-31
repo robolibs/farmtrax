@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.1] - 2025-07-31
+
+### <!-- 0 -->⛰️  Features
+
+- Add equal-area partitioning option
+- Refactor Field class and update dependencies
+- Replace dynamic GIS with static coordinate system
+
+### <!-- 2 -->🚜 Refactor
+
+- Refine field visualization and border handling
+
+### <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Gitignore things
+
 ## [0.3.0] - 2025-06-15
 
 ### <!-- 0 -->⛰️  Features
