@@ -110,7 +110,7 @@ int main() {
     obstacles.push_back(obstacle);
 
     // Use equal-area partitioning with target of 80000 sq.m (8 hectares)
-    farmtrax::Field field(boundary, farm.getDatum(), true, 100000.0);
+    farmtrax::Field field(boundary, farm.getDatum(), true, 100000.0, true);
 
     std::cout << "Field border points: " << field.get_border().getPoints().size() << std::endl;
     std::cout << "Field parts: " << field.get_parts().size() << std::endl;
@@ -135,7 +135,28 @@ int main() {
         farmtrax::Divy divy(fieldPtr, farmtrax::DivisionType::ALTERNATE, num_machines);
         divy.compute_division();
 
-        farmtrax::visualize::show_divisions(divy, rec, f);
+        // farmtrax::visualize::show_divisions(divy, rec, f);
+
+        auto &res = divy.result();
+        for (std::size_t m = 0; m < num_machines; ++m) {
+            if (res.swaths_per_machine.at(m).empty()) {
+                std::cout << "Machine " << m << " has no swaths assigned\n";
+                continue;
+            }
+
+            // Apply obstacle avoidance with 2.0 meter inflation distance
+            auto avoided_swaths = avoider.avoid(res.swaths_per_machine.at(m), 2.0f);
+
+            // Create Nety instance from obstacle-avoided swaths (now filters to only SwathType::Swath)
+            farmtrax::Nety nety(avoided_swaths);
+            nety.field_traversal(); // This reorders the swaths internally
+
+            std::cout << "Machine " << m << " has " << nety.get_swaths().size()
+                      << " swaths in Nety after filtering (only regular swaths)\n";
+
+            // Visualize the optimized swath tour using the reordered swaths with part number
+            farmtrax::visualize::show_swath_tour_for_part(nety, rec, f, m);
+        }
     }
 
     return 0;
