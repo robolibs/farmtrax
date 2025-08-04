@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.2] - 2025-08-04
+
+### <!-- 2 -->🚜 Refactor
+
+- Refactor swath visualization to include detailed tours
+
+### <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update dependencies and refine UI layout
+
 ## [0.3.1] - 2025-07-31
 
 ### <!-- 0 -->⛰️  Features
