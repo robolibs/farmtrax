@@ -20,19 +20,18 @@ namespace farmtrax {
             std::vector<std::array<float, 3>> border_pts;
             for (auto const &p : field.get_border().getPoints())
                 border_pts.push_back({float(p.x), float(p.y), 0.0f});
-            
+
             // Close the border polygon if not already closed
-            if (!border_pts.empty() && (border_pts.front()[0] != border_pts.back()[0] || 
-                                       border_pts.front()[1] != border_pts.back()[1])) {
+            if (!border_pts.empty() &&
+                (border_pts.front()[0] != border_pts.back()[0] || border_pts.front()[1] != border_pts.back()[1])) {
                 border_pts.push_back(border_pts.front());
             }
-            
+
             std::cout << "Visualizing field border with " << border_pts.size() << " points" << std::endl;
-            
-            rec->log_static("/field/border",
-                            rerun::LineStrips3D(rerun::components::LineStrip3D(border_pts))
-                                .with_colors({{rerun::Color(120, 70, 70)}})
-                                .with_radii({{0.2f}}));
+
+            rec->log_static("/field/border", rerun::LineStrips3D(rerun::components::LineStrip3D(border_pts))
+                                                 .with_colors({{rerun::Color(120, 70, 70)}})
+                                                 .with_radii({{0.2f}}));
             for (size_t i = 0; i < field.get_parts().size(); ++i) {
                 for (size_t j = 0; j < field.get_parts()[i].headlands.size(); ++j) {
                     std::vector<std::array<float, 3>> pts;

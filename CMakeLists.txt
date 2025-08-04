@@ -79,7 +79,7 @@ if(${project_name_upper}_BUILD_EXAMPLES)
   FetchContent_MakeAvailable(entropy)
   list(APPEND ext_deps entropy::entropy)
 
-  FetchContent_Declare(geoson GIT_REPOSITORY https://github.com/smolfetch/geoson.git GIT_TAG 1.4.3)
+  FetchContent_Declare(geoson GIT_REPOSITORY https://github.com/smolfetch/geoson.git GIT_TAG 1.4.6)
   FetchContent_MakeAvailable(geoson)
   list(APPEND ext_deps geoson::geoson) 
 
@@ -87,7 +87,7 @@ if(${project_name_upper}_BUILD_EXAMPLES)
   FetchContent_MakeAvailable(geotiv)
   list(APPEND ext_deps geotiv::geotiv)
 
-  FetchContent_Declare(zoneout GIT_REPOSITORY https://github.com/onlyhead/zoneout.git GIT_TAG 0.2.3)
+  FetchContent_Declare(zoneout GIT_REPOSITORY https://github.com/onlyhead/zoneout.git GIT_TAG 0.2.4)
   FetchContent_MakeAvailable(zoneout)
   list(APPEND ext_deps zoneout::zoneout)
   
