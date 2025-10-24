@@ -6,6 +6,8 @@
 #include "../divy.hpp"
 #include "../field.hpp"
 #include "../graph.hpp"
+#include "../turners/dubins.hpp"
+#include "../turners/reeds_shepp.hpp"
 #include "rerun.hpp"
 #include <array>
 #include <rerun/recording_stream.hpp>
@@ -433,6 +435,131 @@ namespace farmtrax {
 
             // Show avoided swaths
             show_avoided_swaths(avoided_swaths, rec, machine_id, "avoided");
+        }
+
+        // Show Dubins path
+        inline void show_dubins_path(std::shared_ptr<rerun::RecordingStream> rec,
+                                     const turners::DubinsPath &dubins_path,
+                                     const std::string &entity_path = "dubins_path",
+                                     const rerun::Color &color = {255, 0, 0}) {
+            if (dubins_path.waypoints.empty())
+                return;
+
+            std::vector<rerun::Position3D> positions;
+            for (const auto &waypoint : dubins_path.waypoints) {
+                positions.emplace_back(waypoint.point.x, waypoint.point.y, 0.0f);
+            }
+
+            if (!positions.empty()) {
+                rec->log_static(entity_path,
+                                rerun::LineStrips3D(rerun::components::LineStrip3D(positions)).with_colors(color));
+            }
+
+            // Show segment types as text annotations
+            if (!dubins_path.segments.empty()) {
+                std::string segment_info = dubins_path.name + " [";
+                for (size_t i = 0; i < dubins_path.segments.size(); ++i) {
+                    if (i > 0)
+                        segment_info += ", ";
+                    char seg_char = static_cast<char>(dubins_path.segments[i].type);
+                    segment_info += seg_char;
+                }
+                segment_info += "]";
+
+                rec->log_static(entity_path + "/info",
+                                rerun::TextLog(segment_info).with_level(rerun::TextLogLevel::Info));
+            }
+        }
+
+        // Show multiple Dubins paths (all in gray)
+        inline void show_dubins_paths(std::shared_ptr<rerun::RecordingStream> rec,
+                                      const std::vector<turners::DubinsPath> &dubins_paths,
+                                      const std::string &base_entity_path = "dubins_paths") {
+            rerun::Color gray_color(128, 128, 128); // Gray color for all paths
+            for (size_t i = 0; i < dubins_paths.size(); ++i) {
+                show_dubins_path(rec, dubins_paths[i], base_entity_path + "/" + dubins_paths[i].name, gray_color);
+            }
+        }
+
+        // Show Reeds-Shepp path
+        inline void show_reeds_shepp_path(std::shared_ptr<rerun::RecordingStream> rec,
+                                          const turners::ReedsSheppPath &rs_path,
+                                          const std::string &entity_path = "reeds_shepp_path",
+                                          const rerun::Color &color = {0, 0, 255}) {
+            if (rs_path.waypoints.empty())
+                return;
+
+            std::vector<rerun::Position3D> positions;
+            std::vector<rerun::Color> colors;
+
+            for (size_t i = 0; i < rs_path.waypoints.size(); ++i) {
+                const auto &waypoint = rs_path.waypoints[i];
+                positions.emplace_back(waypoint.point.x, waypoint.point.y, 0.0f);
+
+                // Color code based on forward/backward motion
+                // Find which segment this waypoint belongs to
+                bool is_forward = true;
+                if (!rs_path.segments.empty()) {
+                    // Simple heuristic: assume equal distribution of waypoints across segments
+                    size_t seg_idx = (i * rs_path.segments.size()) / rs_path.waypoints.size();
+                    seg_idx = std::min(seg_idx, rs_path.segments.size() - 1);
+                    is_forward = rs_path.segments[seg_idx].forward;
+                }
+
+                colors.emplace_back(is_forward ? color.r() : color.r() / 2, is_forward ? color.g() : color.g() / 2,
+                                    is_forward ? color.b() : color.b() / 2);
+            }
+
+            rec->log_static(entity_path,
+                            rerun::LineStrips3D(rerun::components::LineStrip3D(positions)).with_colors(colors));
+
+            // Show segment types as text annotations
+            if (!rs_path.segments.empty()) {
+                std::string segment_info = rs_path.name + " [";
+                for (size_t i = 0; i < rs_path.segments.size(); ++i) {
+                    if (i > 0)
+                        segment_info += ", ";
+                    char seg_char = static_cast<char>(rs_path.segments[i].type);
+                    segment_info += seg_char;
+                    if (!rs_path.segments[i].forward)
+                        segment_info += "(rev)";
+                }
+                segment_info += "]";
+
+                rec->log_static(entity_path + "/info",
+                                rerun::TextLog(segment_info).with_level(rerun::TextLogLevel::Info));
+            }
+        }
+
+        // Show multiple Reeds-Shepp paths (all in gray)
+        inline void show_reeds_shepp_paths(std::shared_ptr<rerun::RecordingStream> rec,
+                                           const std::vector<turners::ReedsSheppPath> &rs_paths,
+                                           const std::string &base_entity_path = "reeds_shepp_paths") {
+            rerun::Color gray_color(128, 128, 128); // Gray color for all paths
+            for (size_t i = 0; i < rs_paths.size(); ++i) {
+                show_reeds_shepp_path(rec, rs_paths[i], base_entity_path + "/" + rs_paths[i].name, gray_color);
+            }
+        }
+
+        // Show robot pose
+        inline void show_robot_pose(std::shared_ptr<rerun::RecordingStream> rec, const concord::Pose &pose,
+                                    const std::string &entity_path = "robot", const rerun::Color &color = {255, 255, 0},
+                                    float scale = 1.0f) {
+            // Robot position
+            rec->log_static(entity_path + "/position", rerun::Points3D({{static_cast<float>(pose.point.x),
+                                                                         static_cast<float>(pose.point.y), 0.0f}})
+                                                           .with_colors(color)
+                                                           .with_radii(0.02f * scale));
+
+            // Robot orientation (arrow)
+            float arrow_length = 0.5f * scale;
+            float end_x = pose.point.x + arrow_length * std::cos(pose.angle.yaw);
+            float end_y = pose.point.y + arrow_length * std::sin(pose.angle.yaw);
+
+            std::vector<rerun::Position3D> orientation_line = {
+                {static_cast<float>(pose.point.x), static_cast<float>(pose.point.y), 0.0f}, {end_x, end_y, 0.0f}};
+            rec->log_static(entity_path + "/orientation",
+                            rerun::LineStrips3D(rerun::components::LineStrip3D(orientation_line)).with_colors(color));
         }
 
     } // namespace visualize
