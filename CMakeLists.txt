@@ -99,8 +99,11 @@ if(${project_name_upper}_BUILD_EXAMPLES)
   FetchContent_MakeAvailable(zoneout)
   list(APPEND ext_deps zoneout::zoneout)
   
-  FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz)
-  FetchContent_MakeAvailable(json)
+find_package(nlohmann_json QUIET)
+if(NOT nlohmann_json_FOUND)
+    FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz)
+    FetchContent_MakeAvailable(json)
+endif()
   list(APPEND ext_deps nlohmann_json::nlohmann_json)
 
   set(Boost_INCLUDE_DIR "/usr/include")
