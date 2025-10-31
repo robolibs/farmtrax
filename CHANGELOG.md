@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.3.3] - 2025-10-31
+
+### <!-- 0 -->⛰️  Features
+
+- Implement Dubins and Reeds-Shepp path planning
+
+### <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update geoson and zoneout, remove plot example
+
+### Build
+
+- Add nlohmann_json as an external dependency
+- Refactor build configuration and local development workflow
+
 ## [0.3.2] - 2025-08-04
 
 ### <!-- 2 -->🚜 Refactor
