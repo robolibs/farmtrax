@@ -29,6 +29,13 @@ FetchContent_Declare(concord GIT_REPOSITORY https://github.com/onlyhead/concord.
 FetchContent_MakeAvailable(concord)
 list(APPEND ext_deps concord::concord)
 
+
+set(Boost_INCLUDE_DIR "/usr/include")
+set(sys_deps)
+find_package(Boost REQUIRED)
+include_directories(${Boost_INCLUDE_DIRS})
+list(APPEND sys_deps ${Boost_LIBRARIES})
+
 # --------------------------------------------------------------------------------------------------
 # Build library
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS src/*.cpp)
@@ -88,12 +95,6 @@ if(${project_name_upper}_BUILD_EXAMPLES)
   FetchContent_MakeAvailable(zoneout)
   list(APPEND ext_deps zoneout::zoneout)
   
-  
-  set(Boost_INCLUDE_DIR "/usr/include")
-  set(sys_deps)
-  find_package(Boost REQUIRED)
-  include_directories(${Boost_INCLUDE_DIRS})
-  list(APPEND sys_deps ${Boost_LIBRARIES})
   
 
   file(GLOB exe CONFIGURE_DEPENDS examples/*.cpp)
