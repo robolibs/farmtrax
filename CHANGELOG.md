@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.0] - 2025-11-01
+
+### <!-- 2 -->🚜 Refactor
+
+- Refactor build system and reorganize source files
+
+### <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Refactor build system and update dependencies
+
 ## [0.3.3] - 2025-10-31
 
 ### <!-- 0 -->⛰️  Features
