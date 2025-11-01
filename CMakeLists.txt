@@ -30,29 +30,40 @@ FetchContent_MakeAvailable(concord)
 list(APPEND ext_deps concord::concord)
 
 # --------------------------------------------------------------------------------------------------
-add_library(${project_name} INTERFACE)
-# allow users to link to this target with `target_link_libraries(mytarget farmtrax::farmtrax)`
-add_library(${project_name}::${project_name} ALIAS ${project_name})
-target_include_directories(${project_name} INTERFACE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-)
-target_link_libraries(${project_name} INTERFACE ${ext_deps})
+# Build library
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS src/*.cpp)
 
-install(
-  DIRECTORY include/
-  DESTINATION include
+add_library(${project_name} ${SOURCES})
+add_library(${project_name}::${project_name} ALIAS ${project_name})
+
+target_include_directories(${project_name} 
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
 )
+
+target_link_libraries(${project_name} PRIVATE ${ext_deps})
+
+# Export dependencies as public (headers use them)
+target_link_libraries(${project_name} PUBLIC ${ext_deps})
+
+target_compile_options(${project_name} PRIVATE ${params})
+
 include_directories(include)
 
 # --------------------------------------------------------------------------------------------------
 include(GNUInstallDirs)
 
-#Install headers
+# Install headers
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-#Install and export the INTERFACE target
-install(TARGETS ${project_name} EXPORT ${project_name}Targets)
+# Install library and export targets
+install(TARGETS ${project_name} 
+    EXPORT ${project_name}Targets
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
 
 #Install the export file so that `find_package(${project_name})` works
 install(EXPORT ${project_name}Targets
