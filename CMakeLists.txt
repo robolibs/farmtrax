@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 
 set(project_name farmtrax)
 
-project(${project_name} VERSION 1.0.0 LANGUAGES CXX)
+project(${project_name} VERSION 0.3.3 LANGUAGES CXX)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     add_compile_options(-Wno-all -Wno-extra -Wno-pedantic -Wno-maybe-uninitialized -Wno-unused-variable -Wno-reorder)
