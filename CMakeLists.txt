@@ -25,7 +25,7 @@ include(FetchContent)
 # --------------------------------------------------------------------------------------------------
 set(ext_deps)
 
-FetchContent_Declare(concord GIT_REPOSITORY https://github.com/onlyhead/concord.git GIT_TAG 2.3.2)
+FetchContent_Declare(concord GIT_REPOSITORY https://github.com/onlyhead/concord.git GIT_TAG 2.5.0)
 FetchContent_MakeAvailable(concord)
 list(APPEND ext_deps concord::concord)
 
@@ -94,8 +94,6 @@ if(${project_name_upper}_BUILD_EXAMPLES)
   FetchContent_Declare(zoneout GIT_REPOSITORY https://github.com/onlyhead/zoneout.git GIT_TAG 1.0.0)
   FetchContent_MakeAvailable(zoneout)
   list(APPEND ext_deps zoneout::zoneout)
-  
-  
 
   file(GLOB exe CONFIGURE_DEPENDS examples/*.cpp)
 

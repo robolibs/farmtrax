@@ -35,7 +35,7 @@ if pkg_config then
             local lib_dir = path.directory(pkgconfig_path)  -- .../lib
             local prefix_dir = path.directory(lib_dir)      -- .../
             local include_dir = path.join(prefix_dir, "include")
-            
+
             if os.isdir(lib_dir) then
                 add_linkdirs(lib_dir)
             end
@@ -70,7 +70,7 @@ package("concord")
         if not os.isdir(sourcedir) then
             print("Fetching concord from git...")
             os.mkdir(path.directory(sourcedir))
-            os.execv("git", {"clone", "--quiet", "--depth", "1", "--branch", "2.3.2", 
+            os.execv("git", {"clone", "--quiet", "--depth", "1", "--branch", "2.5.0", 
                             "-c", "advice.detachedHead=false",
                             "https://github.com/onlyhead/concord.git", sourcedir})
         end
