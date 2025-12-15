@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.1.0] - 2025-12-15
+
+### <!-- 0 -->⛰️  Features
+
+- Add example for visualizing Dubins and Reeds-Shepp paths
+
+### <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update concord and clean up CMakeLists
+- Introduce xmake build system for comprehensive project management
+
 ## [1.0.1] - 2025-11-01
 
 ### Build
