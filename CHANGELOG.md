@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.1] - 2025-12-15
+
+### <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update dev environment and build system paths
+
 ## [1.1.0] - 2025-12-15
 
 ### <!-- 0 -->⛰️  Features

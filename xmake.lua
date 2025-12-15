@@ -1,5 +1,5 @@
 set_project("farmtrax")
-set_version("1.1.0")
+set_version("1.1.1")
 set_xmakever("2.7.0")
 
 -- Set C++ standard
