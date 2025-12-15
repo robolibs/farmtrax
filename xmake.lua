@@ -94,7 +94,7 @@ package("zoneout")
         if not os.isdir(sourcedir) then
             print("Fetching zoneout from git...")
             os.mkdir(path.directory(sourcedir))
-            os.execv("git", {"clone", "--quiet", "--depth", "1", "--branch", "1.0.0",
+            os.execv("git", {"clone", "--quiet", "--depth", "1", "--branch", "1.4.0",
                             "-c", "advice.detachedHead=false",
                             "https://github.com/onlyhead/zoneout.git", sourcedir})
         end

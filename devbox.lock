@@ -49,6 +49,10 @@
         }
       }
     },
+    "boost.dev": {
+      "resolved": "github:NixOS/nixpkgs/fdb6c240562c5ad516253419cc6f26819705d3e0?narHash=sha256-IpldIaWrlasZZlKHPxitkrJ1ex4EVphuWYXVDdF5kf4%3D#boost.dev",
+      "source": "nixpkg"
+    },
     "boost@latest": {
       "last_modified": "2025-05-16T20:19:48Z",
       "resolved": "github:NixOS/nixpkgs/12a55407652e04dcf2309436eb06fef0d3713ef3#boost",

@@ -6,6 +6,7 @@
     "clang-tools@latest",
     "stdenv@latest",
     "boost@latest",
+    "boost.dev",
     "arrow-cpp@latest",
     "fmt@latest"
   ],
