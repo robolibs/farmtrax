@@ -91,9 +91,7 @@ if(${project_name_upper}_BUILD_EXAMPLES)
   find_package(rerun_sdk QUIET)
   list(APPEND ext_deps rerun_sdk)
 
-  FetchContent_Declare(zoneout GIT_REPOSITORY https://github.com/onlyhead/zoneout.git GIT_TAG 1.4.0)
-  FetchContent_MakeAvailable(zoneout)
-  list(APPEND ext_deps zoneout::zoneout)
+
 
   file(GLOB exe CONFIGURE_DEPENDS examples/*.cpp)
 

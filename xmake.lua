@@ -83,30 +83,6 @@ package("concord")
     end)
 package_end()
 
--- Define zoneout package (from git) - for examples
-package("zoneout")
-    add_deps("cmake")
-    set_sourcedir(path.join(os.projectdir(), "build/_deps/zoneout-src"))
-
-    on_fetch(function (package)
-        -- Clone git repository if not exists
-        local sourcedir = package:sourcedir()
-        if not os.isdir(sourcedir) then
-            print("Fetching zoneout from git...")
-            os.mkdir(path.directory(sourcedir))
-            os.execv("git", {"clone", "--quiet", "--depth", "1", "--branch", "1.4.0",
-                            "-c", "advice.detachedHead=false",
-                            "https://github.com/onlyhead/zoneout.git", sourcedir})
-        end
-    end)
-
-    on_install(function (package)
-        local configs = {}
-        table.insert(configs, "-DCMAKE_BUILD_TYPE=" .. (package:is_debug() and "Debug" or "Release"))
-        import("package.tools.cmake").install(package, configs)
-    end)
-package_end()
-
 -- Define rerun_sdk package (from ~/.local installation)
 package("rerun_sdk")
     set_kind("library", {headeronly = false})
@@ -143,7 +119,6 @@ add_requires("boost", {system = true})
 
 if has_config("examples") then
     add_requires("rerun_sdk")
-    add_requires("zoneout")
 end
 
 if has_config("tests") then
@@ -193,7 +168,7 @@ if has_config("examples") and os.projectdir() == os.curdir() then
             set_kind("binary")
             add_files(filepath)
             add_deps("farmtrax")
-            add_packages("concord", "rerun_sdk", "zoneout")
+            add_packages("concord", "rerun_sdk")
             -- Link boost geometry components explicitly
             add_links("boost_system", "boost_filesystem")
 
