@@ -23,18 +23,32 @@ option(${project_name_upper}_ENABLE_TESTS "Enable tests" OFF)
 include(FetchContent)
 
 # --------------------------------------------------------------------------------------------------
+# External dependencies (replacing Boost.Geometry, Boost.Graph, and old concord)
 set(ext_deps)
 
-FetchContent_Declare(concord GIT_REPOSITORY https://github.com/onlyhead/concord.git GIT_TAG 2.5.0)
+# datapod - Data structures (Point, Polygon, Segment, RTree, etc.)
+FetchContent_Declare(datapod 
+    GIT_REPOSITORY https://github.com/bresilla/datapod.git 
+    GIT_TAG main
+)
+FetchContent_MakeAvailable(datapod)
+list(APPEND ext_deps datapod::datapod)
+
+# concord - Coordinate transformations (ENU, NED, WGS84, UTM)
+FetchContent_Declare(concord 
+    GIT_REPOSITORY https://github.com/bresilla/concord.git 
+    GIT_TAG main
+)
 FetchContent_MakeAvailable(concord)
 list(APPEND ext_deps concord::concord)
 
-
-set(Boost_INCLUDE_DIR "/usr/include")
-set(sys_deps)
-find_package(Boost REQUIRED)
-include_directories(${Boost_INCLUDE_DIRS})
-list(APPEND sys_deps ${Boost_LIBRARIES})
+# graphix - Graph algorithms (Dijkstra, A*, etc.)
+FetchContent_Declare(graphix 
+    GIT_REPOSITORY https://github.com/bresilla/graphix.git 
+    GIT_TAG main
+)
+FetchContent_MakeAvailable(graphix)
+list(APPEND ext_deps graphix::graphix)
 
 # --------------------------------------------------------------------------------------------------
 # Build library

@@ -5,7 +5,7 @@
 #include <vector>
 
 // Helper to create some test swaths
-std::vector<std::shared_ptr<farmtrax::Swath>> create_test_swaths(const concord::Datum &datum = concord::Datum{}) {
+std::vector<std::shared_ptr<farmtrax::Swath>> create_test_swaths(const datapod::Geo &datum = datapod::Geo{}) {
     // Create parallel swaths
     std::vector<std::shared_ptr<farmtrax::Swath>> swaths;
 
@@ -19,23 +19,13 @@ std::vector<std::shared_ptr<farmtrax::Swath>> create_test_swaths(const concord::
         // Create a straight line for the swath
         double x = i * 10.0; // Each swath 10m apart
 
-        // Set up the b_line (boost linestring)
-        swath->b_line.push_back(farmtrax::BPoint(x, 0.0));
-        swath->b_line.push_back(farmtrax::BPoint(x, 100.0));
+        // Set up the line (datapod Segment)
+        swath->line.start = datapod::Point(x, 0.0, 0.0);
+        swath->line.end = datapod::Point(x, 100.0, 0.0);
 
-        // Set up the centerline (for tests)
-        swath->centerline.push_back(farmtrax::BPoint(x, 0.0));
-        swath->centerline.push_back(farmtrax::BPoint(x, 100.0));
-
-        // Create concord line
-        concord::Point start(x, 0.0, 0.0);
-        concord::Point end(x, 100.0, 0.0);
-        swath->line.setStart(start);
-        swath->line.setEnd(end);
-
-        // Create concord points for the swath
-        swath->points.push_back(start);
-        swath->points.push_back(end);
+        // Create datapod points for the swath
+        swath->points.push_back(swath->line.start);
+        swath->points.push_back(swath->line.end);
 
         swaths.push_back(swath);
     }
@@ -44,7 +34,7 @@ std::vector<std::shared_ptr<farmtrax::Swath>> create_test_swaths(const concord::
 }
 
 TEST_CASE("Nety Construction") {
-    concord::Datum datum{51.0, 5.0, 0.0};
+    datapod::Geo datum{51.0, 5.0, 0.0};
 
     // Create test swaths
     auto swaths = create_test_swaths(datum);
@@ -63,27 +53,20 @@ TEST_CASE("Nety Construction") {
 }
 
 TEST_CASE("ABLine Creation and Properties") {
-    concord::Datum datum{51.0, 5.0, 0.0};
+    datapod::Geo datum{51.0, 5.0, 0.0};
 
-    // Create ABLine from boost points
-    farmtrax::BPoint a(0.0, 0.0);
-    farmtrax::BPoint b(10.0, 0.0);
-    farmtrax::ABLine line1(a, b, "test_line_1", 1);
-
-    // Create ABLine from concord points
-    concord::Point p1(0.0, 0.0, 0.0);
-    concord::Point p2(10.0, 0.0, 0.0);
-    farmtrax::ABLine line2(p1, p2, "test_line_2", 2);
+    // Create ABLine from datapod points
+    datapod::Point p1(0.0, 0.0, 0.0);
+    datapod::Point p2(10.0, 0.0, 0.0);
+    farmtrax::ABLine line(p1, p2, "test_line", 1);
 
     // Check properties
-    CHECK(line1.length() == doctest::Approx(10.0));
-    CHECK(line2.length() == doctest::Approx(10.0));
-    CHECK(line1.uuid == "test_line_1");
-    CHECK(line2.uuid == "test_line_2");
+    CHECK(line.length() == doctest::Approx(10.0));
+    CHECK(line.uuid == "test_line");
 }
 
 TEST_CASE("Field Traversal Optimization") {
-    concord::Datum datum{51.0, 5.0, 0.0};
+    datapod::Geo datum{51.0, 5.0, 0.0};
 
     // Create test swaths
     auto swaths = create_test_swaths(datum);

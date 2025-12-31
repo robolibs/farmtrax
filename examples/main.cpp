@@ -2,7 +2,7 @@
 #include <iostream>
 #include <thread>
 
-#include "concord/concord.hpp"
+#include "datapod/datapod.hpp"
 
 #include "rerun/recording_stream.hpp"
 
@@ -22,22 +22,20 @@ int main() {
         return 1;
     }
 
-    std::vector<concord::WGS> coordinates;
-    coordinates.push_back(concord::WGS(51.98765392402663, 5.660072928621929, 0.0));
-    coordinates.push_back(concord::WGS(51.98816428304869, 5.661754957062072, 0.0));
-    coordinates.push_back(concord::WGS(51.989850316694316, 5.660416700858434, 0.0));
-    coordinates.push_back(concord::WGS(51.990417354104295, 5.662166255987472, 0.0));
-    coordinates.push_back(concord::WGS(51.991078888673854, 5.660969191951295, 0.0));
-    coordinates.push_back(concord::WGS(51.989479848375254, 5.656874619070777, 0.0));
-    coordinates.push_back(concord::WGS(51.988156722216644, 5.657715633290422, 0.0));
-    coordinates.push_back(concord::WGS(51.98765392402663, 5.660072928621929, 0.0));
+    // Define the world datum (reference point)
+    datapod::Geo world_datum{51.98954034749562, 5.6584737410504715, 53.801823};
 
-    concord::Datum world_datum{51.98954034749562, 5.6584737410504715, 53.801823};
-    concord::Polygon poly;
-    for (const auto &wgs_coord : coordinates) {
-        auto enu_coord = wgs_coord.toENU(world_datum);
-        poly.addPoint(concord::Point{enu_coord.x, enu_coord.y, enu_coord.z});
-    }
+    // Create polygon directly in local ENU coordinates (pre-converted)
+    // These are approximate ENU coordinates for the field
+    datapod::Polygon poly;
+    poly.vertices.push_back(datapod::Point{-150.0, -200.0, 0.0});
+    poly.vertices.push_back(datapod::Point{100.0, -150.0, 0.0});
+    poly.vertices.push_back(datapod::Point{150.0, 100.0, 0.0});
+    poly.vertices.push_back(datapod::Point{200.0, 200.0, 0.0});
+    poly.vertices.push_back(datapod::Point{100.0, 250.0, 0.0});
+    poly.vertices.push_back(datapod::Point{-100.0, -50.0, 0.0});
+    poly.vertices.push_back(datapod::Point{-150.0, -100.0, 0.0});
+    poly.vertices.push_back(datapod::Point{-150.0, -200.0, 0.0}); // Close
 
     farmtrax::Field field(poly, world_datum, true, 100000.0);
 
@@ -45,7 +43,7 @@ int main() {
     auto num_machines = 2;
 
     // Create some example obstacles (e.g., trees, buildings, water bodies)
-    std::vector<concord::Polygon> obstacles;
+    std::vector<datapod::Polygon> obstacles;
 
     // Calculate the actual center of the field based on its bounds
     double min_x = std::numeric_limits<double>::max();
@@ -53,7 +51,7 @@ int main() {
     double min_y = std::numeric_limits<double>::max();
     double max_y = std::numeric_limits<double>::lowest();
 
-    for (const auto &point : poly.getPoints()) {
+    for (const auto &point : poly.vertices) {
         min_x = std::min(min_x, point.x);
         max_x = std::max(max_x, point.x);
         min_y = std::min(min_y, point.y);
@@ -67,14 +65,14 @@ int main() {
     std::cout << "Field center: (" << center_x << ", " << center_y << ")\n";
 
     // Create a square obstacle at the center of the field
-    concord::Polygon obstacle1;
-    double obstacle_size = 25.0; // 15 meter square obstacle
+    datapod::Polygon obstacle1;
+    double obstacle_size = 25.0; // 25 meter square obstacle
 
-    obstacle1.addPoint(concord::Point{center_x - obstacle_size, center_y - obstacle_size, 0});
-    obstacle1.addPoint(concord::Point{center_x + obstacle_size, center_y - obstacle_size, 0});
-    obstacle1.addPoint(concord::Point{center_x + obstacle_size, center_y + obstacle_size, 0});
-    obstacle1.addPoint(concord::Point{center_x - obstacle_size, center_y + obstacle_size, 0});
-    obstacle1.addPoint(concord::Point{center_x - obstacle_size, center_y - obstacle_size, 0}); // Close the polygon
+    obstacle1.vertices.push_back(datapod::Point{center_x - obstacle_size, center_y - obstacle_size, 0});
+    obstacle1.vertices.push_back(datapod::Point{center_x + obstacle_size, center_y - obstacle_size, 0});
+    obstacle1.vertices.push_back(datapod::Point{center_x + obstacle_size, center_y + obstacle_size, 0});
+    obstacle1.vertices.push_back(datapod::Point{center_x - obstacle_size, center_y + obstacle_size, 0});
+    obstacle1.vertices.push_back(datapod::Point{center_x - obstacle_size, center_y - obstacle_size, 0}); // Close
 
     // Add the obstacle to the obstacles vector
     obstacles.push_back(obstacle1);
@@ -99,8 +97,8 @@ int main() {
 
         const auto &part = field.get_parts()[f];
 
-        // Calculate part area to show partitioning effectiveness
-        auto part_area = boost::geometry::area(part.boundary.b_polygon);
+        // Calculate part area using datapod polygon
+        auto part_area = std::abs(part.boundary.polygon.area());
         std::cout << "Part " << (f + 1) << ": " << std::fixed << std::setprecision(1) << part_area << " sq.m ("
                   << (part_area / 10000.0) << " hectares), " << part.headlands.size() << " headlands, "
                   << part.swaths.size() << " swaths\n";

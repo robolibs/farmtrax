@@ -5,7 +5,6 @@
 #include <array>
 #include <cassert>
 #include <cmath>
-#include <concord/concord.hpp>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -34,7 +33,7 @@ namespace farmtrax {
 
         struct ReedsSheppPath {
             std::vector<ReedsSheppSegment> segments;
-            std::vector<concord::Pose> waypoints;
+            std::vector<Pose2D> waypoints;
             double total_length;
             std::string name;
 
@@ -506,8 +505,7 @@ namespace farmtrax {
           public:
             inline ReedsShepp(double min_turning_radius) : Dubins(min_turning_radius), rs_(min_turning_radius) {}
 
-            inline ReedsSheppPath plan_path(const concord::Pose &start, const concord::Pose &end,
-                                            double step_size = 0.1) const {
+            inline ReedsSheppPath plan_path(const Pose2D &start, const Pose2D &end, double step_size = 0.1) const {
                 auto all_paths = get_all_paths(start, end, step_size);
 
                 if (all_paths.empty()) {
@@ -521,13 +519,13 @@ namespace farmtrax {
                 return *shortest;
             }
 
-            inline std::vector<ReedsSheppPath> get_all_paths(const concord::Pose &start, const concord::Pose &end,
+            inline std::vector<ReedsSheppPath> get_all_paths(const Pose2D &start, const Pose2D &end,
                                                              double step_size = 0.1) const {
                 std::vector<ReedsSheppPath> paths;
 
                 // Convert to ReedsSheppStateSpace format
-                double q0[3] = {start.point.x, start.point.y, start.angle.yaw};
-                double q1[3] = {end.point.x, end.point.y, end.angle.yaw};
+                double q0[3] = {start.point.x, start.point.y, start.yaw};
+                double q1[3] = {end.point.x, end.point.y, end.yaw};
 
                 // Get all possible Reeds-Shepp paths using the proper implementation
                 auto rs_paths = rs_.getAllReedsSheppPaths(q0, q1);
@@ -582,7 +580,7 @@ namespace farmtrax {
             mutable ReedsSheppStateSpace rs_;
 
             inline void sampleSpecificPath(const ReedsSheppStateSpace::ReedsSheppPath &rs_path, double q0[3],
-                                           double step_size, std::vector<concord::Pose> &waypoints) const {
+                                           double step_size, std::vector<Pose2D> &waypoints) const {
                 waypoints.clear();
 
                 double length = rs_path.length() * radius_;
@@ -592,10 +590,7 @@ namespace farmtrax {
                     rs_.interpolate(q0, const_cast<ReedsSheppStateSpace::ReedsSheppPath &>(rs_path), seg / radius_,
                                     qnew);
 
-                    concord::Pose pose;
-                    pose.point.x = qnew[0];
-                    pose.point.y = qnew[1];
-                    pose.angle.yaw = qnew[2];
+                    Pose2D pose(qnew[0], qnew[1], qnew[2]);
                     waypoints.push_back(pose);
                 }
             }

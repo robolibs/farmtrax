@@ -3,19 +3,32 @@
 #include "farmtrax/field.hpp"
 #include <memory>
 
+// Helper function to create AABB from a Segment
+inline datapod::AABB segment_to_aabb(const datapod::Segment &seg) {
+    return datapod::AABB{datapod::Point{std::min(seg.start.x, seg.end.x), std::min(seg.start.y, seg.end.y),
+                                        std::min(seg.start.z, seg.end.z)},
+                         datapod::Point{std::max(seg.start.x, seg.end.x), std::max(seg.start.y, seg.end.y),
+                                        std::max(seg.start.z, seg.end.z)}};
+}
+
+// Helper to check if AABB is valid (not default-initialized)
+inline bool is_aabb_valid(const datapod::AABB &aabb) {
+    return aabb.min_point.x != 0.0 || aabb.min_point.y != 0.0 || aabb.max_point.x != 0.0 || aabb.max_point.y != 0.0;
+}
+
 // Helper to create a test field with a single part
-std::shared_ptr<farmtrax::Part> create_test_part(const concord::Datum &datum = concord::Datum{}) {
+std::shared_ptr<farmtrax::Part> create_test_part(const datapod::Geo &datum = datapod::Geo{}) {
     std::cout << "Debug: Starting create_test_part" << std::endl;
 
     // Create a simple rectangular polygon
-    concord::Polygon poly;
+    datapod::Polygon poly;
     std::cout << "Debug: Adding polygon points" << std::endl;
-    poly.addPoint(concord::Point{0.0, 0.0, 0.0});
-    poly.addPoint(concord::Point{100.0, 0.0, 0.0});
-    poly.addPoint(concord::Point{100.0, 50.0, 0.0});
-    poly.addPoint(concord::Point{0.0, 50.0, 0.0});
-    poly.addPoint(concord::Point{0.0, 0.0, 0.0}); // Close the polygon
-    std::cout << "Debug: Polygon created with " << poly.getPoints().size() << " points" << std::endl;
+    poly.vertices.push_back(datapod::Point{0.0, 0.0, 0.0});
+    poly.vertices.push_back(datapod::Point{100.0, 0.0, 0.0});
+    poly.vertices.push_back(datapod::Point{100.0, 50.0, 0.0});
+    poly.vertices.push_back(datapod::Point{0.0, 50.0, 0.0});
+    poly.vertices.push_back(datapod::Point{0.0, 0.0, 0.0}); // Close the polygon
+    std::cout << "Debug: Polygon created with " << poly.vertices.size() << " points" << std::endl;
 
     // Create a field with the polygon - use large area threshold to avoid excessive partitioning
     std::cout << "Debug: Creating field" << std::endl;
@@ -37,46 +50,21 @@ std::shared_ptr<farmtrax::Part> create_test_part(const concord::Datum &datum = c
         std::cout << "Debug: Initializing swaths" << std::endl;
         for (size_t i = 0; i < part->swaths.size(); i++) {
             auto &swath = part->swaths[i];
-            std::cout << "Debug: Processing swath " << i << ", b_line size: " << swath.b_line.size() << std::endl;
+            std::cout << "Debug: Processing swath " << i << std::endl;
 
-            // Initialize centerline for each swath
-            if (swath.b_line.size() > 0 && swath.centerline.empty()) {
-                std::cout << "Debug: Initializing centerline" << std::endl;
-                for (const auto &bpoint : swath.b_line) {
-                    swath.centerline.push_back(bpoint);
-                }
-                std::cout << "Debug: Centerline initialized with " << swath.centerline.size() << " points" << std::endl;
-            }
-
-            // Make sure points are set
-            if (swath.points.empty() && !swath.b_line.empty()) {
-                std::cout << "Debug: Setting points" << std::endl;
-                swath.points.reserve(swath.b_line.size());
-                for (const auto &bpoint : swath.b_line) {
-                    swath.points.push_back(farmtrax::utils::from_boost(bpoint, datum));
-                }
+            // Make sure points are set from line
+            if (swath.points.empty()) {
+                std::cout << "Debug: Setting points from line" << std::endl;
+                swath.points.push_back(swath.line.start);
+                swath.points.push_back(swath.line.end);
                 std::cout << "Debug: Points set with " << swath.points.size() << " points" << std::endl;
             }
 
-            // Make sure line is set
-            if (!swath.points.empty() && (swath.line.getStart().x == 0 && swath.line.getStart().y == 0 &&
-                                          swath.line.getEnd().x == 0 && swath.line.getEnd().y == 0)) {
-                std::cout << "Debug: Setting line" << std::endl;
-                swath.line.setStart(swath.points.front());
-                swath.line.setEnd(swath.points.back());
-                std::cout << "Debug: Line set successfully" << std::endl;
-            }
-
             // Ensure bounding box is computed
-            if (swath.bounding_box.min_corner().x() == 0 && swath.bounding_box.min_corner().y() == 0 &&
-                swath.bounding_box.max_corner().x() == 0 && swath.bounding_box.max_corner().y() == 0) {
+            if (!is_aabb_valid(swath.bounding_box)) {
                 std::cout << "Debug: Computing bounding box" << std::endl;
-                if (swath.b_line.empty()) {
-                    std::cout << "Warning: Cannot compute bounding box - empty b_line" << std::endl;
-                } else {
-                    swath.bounding_box = boost::geometry::return_envelope<farmtrax::BBox>(swath.b_line);
-                    std::cout << "Debug: Bounding box computed" << std::endl;
-                }
+                swath.bounding_box = segment_to_aabb(swath.line);
+                std::cout << "Debug: Bounding box computed" << std::endl;
             }
         }
 
@@ -90,7 +78,7 @@ std::shared_ptr<farmtrax::Part> create_test_part(const concord::Datum &datum = c
 }
 
 TEST_CASE("Divy Constructor and Basic Parameters") {
-    concord::Datum datum{51.0, 5.0, 0.0};
+    datapod::Geo datum{51.0, 5.0, 0.0};
     std::cout << "Creating test part..." << std::endl;
     auto part = create_test_part(datum);
     std::cout << "Test part created successfully" << std::endl;
@@ -124,7 +112,7 @@ TEST_CASE("Divy Constructor and Basic Parameters") {
 }
 
 TEST_CASE("Division Computation with Alternating Assignment") {
-    concord::Datum datum{51.0, 5.0, 0.0};
+    datapod::Geo datum{51.0, 5.0, 0.0};
     auto part = create_test_part(datum);
 
     // Create divider with alternating assignment
@@ -157,7 +145,7 @@ TEST_CASE("Division Computation with Alternating Assignment") {
 }
 
 TEST_CASE("Division Computation with Block Assignment") {
-    concord::Datum datum{51.0, 5.0, 0.0};
+    datapod::Geo datum{51.0, 5.0, 0.0};
     auto part = create_test_part(datum);
 
     // All initialization should be done in the create_test_part function
@@ -184,13 +172,13 @@ TEST_CASE("Division Computation with Block Assignment") {
 
         for (const auto &swath : result.swaths_per_machine.at(0)) {
             // Use the line start point's x coordinate
-            avg_x_m0 += swath->line.getStart().x;
+            avg_x_m0 += swath->line.start.x;
         }
         avg_x_m0 /= result.swaths_per_machine.at(0).size();
 
         for (const auto &swath : result.swaths_per_machine.at(1)) {
             // Use the line start point's x coordinate
-            avg_x_m1 += swath->line.getStart().x;
+            avg_x_m1 += swath->line.start.x;
         }
         avg_x_m1 /= result.swaths_per_machine.at(1).size();
 
@@ -201,7 +189,7 @@ TEST_CASE("Division Computation with Block Assignment") {
 }
 
 TEST_CASE("Changing Machine Count") {
-    concord::Datum datum{51.0, 5.0, 0.0};
+    datapod::Geo datum{51.0, 5.0, 0.0};
     auto part = create_test_part(datum);
 
     // Create divider with 2 machines

@@ -25,24 +25,24 @@ int main() {
     std::srand(std::time(nullptr));
 
     // Random start pose
-    concord::Pose start;
-    start.point.x = 1.0 + (std::rand() / (double)RAND_MAX) * 2.0;           // Random x between 1 and 3
-    start.point.y = 1.0 + (std::rand() / (double)RAND_MAX) * 2.0;           // Random y between 1 and 3
-    start.angle.yaw = (std::rand() / (double)RAND_MAX) * 2.0 * M_PI - M_PI; // Random angle between -π and π
+    farmtrax::turners::Pose2D start;
+    start.point.x = 1.0 + (std::rand() / (double)RAND_MAX) * 2.0;     // Random x between 1 and 3
+    start.point.y = 1.0 + (std::rand() / (double)RAND_MAX) * 2.0;     // Random y between 1 and 3
+    start.yaw = (std::rand() / (double)RAND_MAX) * 2.0 * M_PI - M_PI; // Random angle between -π and π
 
     start.point.x = 0.0;
     start.point.y = 0.0;
-    start.angle.yaw = 0.0;
+    start.yaw = 0.0;
 
     // Random end pose further from start
-    concord::Pose end = start;
+    farmtrax::turners::Pose2D end = start;
     end.point.x = start.point.x + (std::rand() / (double)RAND_MAX) * 6.0 - 3.0; // Within ±3 of start
     end.point.y = start.point.y + (std::rand() / (double)RAND_MAX) * 6.0 - 3.0; // Within ±3 of start
-    end.angle.yaw = (std::rand() / (double)RAND_MAX) * 2.0 * M_PI - M_PI;       // Random angle between -π and π
+    end.yaw = (std::rand() / (double)RAND_MAX) * 2.0 * M_PI - M_PI;             // Random angle between -π and π
 
     end.point.x = 0.0;
     end.point.y = 1.0;
-    end.angle.yaw = M_PI;
+    end.yaw = M_PI;
 
     // Visualize poses
     farmtrax::visualize::show_robot_pose(rec, start, "start", rerun::Color(0, 255, 0)); // Green start

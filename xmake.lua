@@ -59,27 +59,51 @@ option("tests")
     set_description("Enable tests")
 option_end()
 
--- Define concord package (from git)
-package("concord")
-    add_deps("cmake")
-    set_sourcedir(path.join(os.projectdir(), "build/_deps/concord-src"))
+-- Define datapod package (from local path)
+package("datapod")
+    set_kind("library", {headeronly = true})
+    set_sourcedir("/doc/ares/datapod")
 
     on_fetch(function (package)
-        -- Clone git repository if not exists
-        local sourcedir = package:sourcedir()
-        if not os.isdir(sourcedir) then
-            print("Fetching concord from git...")
-            os.mkdir(path.directory(sourcedir))
-            os.execv("git", {"clone", "--quiet", "--depth", "1", "--branch", "2.5.0", 
-                            "-c", "advice.detachedHead=false",
-                            "https://github.com/onlyhead/concord.git", sourcedir})
-        end
+        local result = {}
+        result.includedirs = {"/doc/ares/datapod/include"}
+        return result
     end)
+package_end()
 
-    on_install(function (package)
-        local configs = {}
-        table.insert(configs, "-DCMAKE_BUILD_TYPE=" .. (package:is_debug() and "Debug" or "Release"))
-        import("package.tools.cmake").install(package, configs)
+-- Define concord package (from local path - NEW version)
+package("concord")
+    set_kind("library", {headeronly = true})
+    set_sourcedir("/doc/ares/concord")
+
+    on_fetch(function (package)
+        local result = {}
+        result.includedirs = {"/doc/ares/concord/include"}
+        return result
+    end)
+package_end()
+
+-- Define graphix package (from local path)
+package("graphix")
+    set_kind("library", {headeronly = true})
+    set_sourcedir("/doc/ares/graphix")
+
+    on_fetch(function (package)
+        local result = {}
+        result.includedirs = {"/doc/ares/graphix/include"}
+        return result
+    end)
+package_end()
+
+-- Define optinum package (from local path - dependency of concord)
+package("optinum")
+    set_kind("library", {headeronly = true})
+    set_sourcedir("/doc/ares/optinum")
+
+    on_fetch(function (package)
+        local result = {}
+        result.includedirs = {"/doc/ares/optinum/include"}
+        return result
     end)
 package_end()
 
@@ -113,9 +137,11 @@ package("rerun_sdk")
     end)
 package_end()
 
--- Add required packages
+-- Add required packages (NO MORE BOOST!)
+add_requires("datapod")
 add_requires("concord")
-add_requires("boost", {system = true})
+add_requires("graphix")
+add_requires("optinum")
 
 if has_config("examples") then
     add_requires("rerun_sdk")
@@ -132,15 +158,13 @@ target("farmtrax")
     -- Add source files
     add_files("src/farmtrax/**.cpp")
 
-    -- Add header files
+    -- Add header files (including temp/)
     add_headerfiles("include/(farmtrax/**.hpp)")
+    add_headerfiles("include/(temp/**.hpp)")
     add_includedirs("include", {public = true})
 
-    -- Link dependencies
-    add_packages("concord")
-    -- Explicitly link only boost geometry components
-    add_linkdirs(path.join(os.getenv("CMAKE_PREFIX_PATH") or "", "lib"))
-    add_links("boost_system", "boost_filesystem")
+    -- Link dependencies (NO MORE BOOST!)
+    add_packages("datapod", "concord", "graphix", "optinum")
 
     -- Conditional rerun support (only if package is found)
     if has_config("examples") then
@@ -154,6 +178,7 @@ target("farmtrax")
 
     -- Set install files
     add_installfiles("include/(farmtrax/**.hpp)")
+    add_installfiles("include/(temp/**.hpp)")
     on_install(function (target)
         local installdir = target:installdir()
         os.cp(target:targetfile(), path.join(installdir, "lib", path.filename(target:targetfile())))
@@ -168,9 +193,7 @@ if has_config("examples") and os.projectdir() == os.curdir() then
             set_kind("binary")
             add_files(filepath)
             add_deps("farmtrax")
-            add_packages("concord", "rerun_sdk")
-            -- Link boost geometry components explicitly
-            add_links("boost_system", "boost_filesystem")
+            add_packages("datapod", "concord", "graphix", "optinum", "rerun_sdk")
 
             -- Add HAS_RERUN define for examples
             on_load(function (target)
@@ -192,9 +215,7 @@ if has_config("tests") and os.projectdir() == os.curdir() then
             set_kind("binary")
             add_files(filepath)
             add_deps("farmtrax")
-            add_packages("concord", "doctest")
-            -- Link boost geometry components explicitly
-            add_links("boost_system", "boost_filesystem")
+            add_packages("datapod", "concord", "graphix", "optinum", "doctest")
             add_includedirs("include")
             add_defines("DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN")
 

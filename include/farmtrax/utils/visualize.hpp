@@ -20,7 +20,7 @@ namespace farmtrax {
         inline void show_field(const farmtrax::Field &field, std::shared_ptr<rerun::RecordingStream> rec) {
             // Show the main field border
             std::vector<std::array<float, 3>> border_pts;
-            for (auto const &p : field.get_border().getPoints())
+            for (auto const &p : field.get_border().vertices)
                 border_pts.push_back({float(p.x), float(p.y), 0.0f});
 
             // Close the border polygon if not already closed
@@ -37,7 +37,7 @@ namespace farmtrax {
             for (size_t i = 0; i < field.get_parts().size(); ++i) {
                 for (size_t j = 0; j < field.get_parts()[i].headlands.size(); ++j) {
                     std::vector<std::array<float, 3>> pts;
-                    for (auto const &p : field.get_parts()[i].headlands[j].polygon.getPoints())
+                    for (auto const &p : field.get_parts()[i].headlands[j].polygon.vertices)
                         pts.push_back({float(p.x), float(p.y), 0.0f});
                     rec->log_static("/field/part" + std::to_string(i) + "/headland" + std::to_string(j),
                                     rerun::LineStrips3D(rerun::components::LineStrip3D(pts))
@@ -48,9 +48,8 @@ namespace farmtrax {
             for (size_t i = 0; i < field.get_parts().size(); ++i) {
                 for (size_t j = 0; j < field.get_parts()[i].swaths.size(); ++j) {
                     auto const &s = field.get_parts()[i].swaths[j];
-                    std::vector<std::array<float, 3>> pts = {
-                        {float(s.line.getStart().x), float(s.line.getStart().y), 0.0f},
-                        {float(s.line.getEnd().x), float(s.line.getEnd().y), 0.0f}};
+                    std::vector<std::array<float, 3>> pts = {{float(s.line.start.x), float(s.line.start.y), 0.0f},
+                                                             {float(s.line.end.x), float(s.line.end.y), 0.0f}};
                     rec->log_static("/field/part" + std::to_string(i) + "/swath" + std::to_string(j),
                                     rerun::LineStrips3D(rerun::components::LineStrip3D(pts))
                                         .with_colors({{rerun::Color(70, 70, 120)}})
@@ -70,7 +69,7 @@ namespace farmtrax {
                 for (size_t j = 0; j < headlands.size(); ++j) {
                     auto ring_ptr = headlands[j];
                     std::vector<std::array<float, 3>> pts;
-                    for (auto const &p : ring_ptr->polygon.getPoints())
+                    for (auto const &p : ring_ptr->polygon.vertices)
                         pts.push_back({float(p.x), float(p.y), 0.1f});
                     rec->log_static("/division/headland" + std::to_string(m) + "_" + std::to_string(j),
                                     rerun::LineStrips3D(rerun::components::LineStrip3D(pts))
@@ -85,8 +84,8 @@ namespace farmtrax {
                 for (size_t j = 0; j < swaths.size(); ++j) {
                     auto sw_ptr = swaths[j];
                     std::vector<std::array<float, 3>> pts = {
-                        {float(sw_ptr->line.getStart().x), float(sw_ptr->line.getStart().y), 0.1f},
-                        {float(sw_ptr->line.getEnd().x), float(sw_ptr->line.getEnd().y), 0.0f}};
+                        {float(sw_ptr->line.start.x), float(sw_ptr->line.start.y), 0.1f},
+                        {float(sw_ptr->line.end.x), float(sw_ptr->line.end.y), 0.0f}};
                     rec->log_static("/division/swath" + std::to_string(m) + "_" + std::to_string(j),
                                     rerun::LineStrips3D(rerun::components::LineStrip3D(pts))
                                         .with_colors({{color}})
@@ -108,7 +107,7 @@ namespace farmtrax {
                 for (size_t j = 0; j < headlands.size(); ++j) {
                     auto ring_ptr = headlands[j];
                     std::vector<std::array<float, 3>> pts;
-                    for (auto const &p : ring_ptr->polygon.getPoints())
+                    for (auto const &p : ring_ptr->polygon.vertices)
                         pts.push_back({float(p.x), float(p.y), 0.1f});
                     rec->log_static("/part" + std::to_string(part_id) + "/division/headland" + std::to_string(m) + "_" +
                                         std::to_string(j),
@@ -124,8 +123,8 @@ namespace farmtrax {
                 for (size_t j = 0; j < swaths.size(); ++j) {
                     auto sw_ptr = swaths[j];
                     std::vector<std::array<float, 3>> pts = {
-                        {float(sw_ptr->line.getStart().x), float(sw_ptr->line.getStart().y), 0.1f},
-                        {float(sw_ptr->line.getEnd().x), float(sw_ptr->line.getEnd().y), 0.0f}};
+                        {float(sw_ptr->line.start.x), float(sw_ptr->line.start.y), 0.1f},
+                        {float(sw_ptr->line.end.x), float(sw_ptr->line.end.y), 0.0f}};
                     rec->log_static("/part" + std::to_string(part_id) + "/division/swath" + std::to_string(m) + "_" +
                                         std::to_string(j),
                                     rerun::LineStrips3D(rerun::components::LineStrip3D(pts))
@@ -284,14 +283,14 @@ namespace farmtrax {
         }
 
         // Visualize obstacles as border-only polygons
-        inline void show_obstacles(const std::vector<concord::Polygon> &obstacles,
+        inline void show_obstacles(const std::vector<datapod::Polygon> &obstacles,
                                    std::shared_ptr<rerun::RecordingStream> rec, float height = 0.5f) {
             for (size_t i = 0; i < obstacles.size(); ++i) {
                 const auto &obstacle = obstacles[i];
 
                 // Create vertices for the polygon
                 std::vector<std::array<float, 3>> vertices;
-                for (const auto &point : obstacle.getPoints()) {
+                for (const auto &point : obstacle.vertices) {
                     vertices.push_back({float(point.x), float(point.y), height});
                 }
 
@@ -304,15 +303,15 @@ namespace farmtrax {
         }
 
         // Visualize inflated obstacles (for debugging)
-        inline void show_inflated_obstacles(const std::vector<BPolygon> &inflated_obstacles,
+        inline void show_inflated_obstacles(const std::vector<datapod::Polygon> &inflated_obstacles,
                                             std::shared_ptr<rerun::RecordingStream> rec, float height = 0.6f) {
             for (size_t i = 0; i < inflated_obstacles.size(); ++i) {
                 const auto &obstacle = inflated_obstacles[i];
 
                 // Create vertices for the inflated polygon
                 std::vector<std::array<float, 3>> vertices;
-                for (const auto &point : obstacle.outer()) {
-                    vertices.push_back({float(point.x()), float(point.y()), height});
+                for (const auto &point : obstacle.vertices) {
+                    vertices.push_back({float(point.x), float(point.y), height});
                 }
 
                 // Create outline for inflated obstacle
@@ -405,17 +404,8 @@ namespace farmtrax {
                                             const std::vector<std::shared_ptr<const Swath>> &original_swaths,
                                             const std::vector<std::shared_ptr<Swath>> &avoided_swaths,
                                             std::shared_ptr<rerun::RecordingStream> rec, size_t machine_id = 0) {
-            // Show original obstacles
-            std::vector<concord::Polygon> obstacles;
-            for (const auto &boost_poly : avoider.get_obstacles()) {
-                // Convert back to concord::Polygon for visualization
-                concord::Polygon poly;
-                for (const auto &point : boost_poly.outer()) {
-                    poly.addPoint(concord::Point(point.x(), point.y(), 0.0));
-                }
-                obstacles.push_back(poly);
-            }
-            show_obstacles(obstacles, rec);
+            // Show original obstacles (already datapod::Polygon)
+            show_obstacles(avoider.get_obstacles(), rec);
 
             // Show inflated obstacles
             show_inflated_obstacles(avoider.get_inflated_obstacles(), rec);
@@ -541,8 +531,8 @@ namespace farmtrax {
             }
         }
 
-        // Show robot pose
-        inline void show_robot_pose(std::shared_ptr<rerun::RecordingStream> rec, const concord::Pose &pose,
+        // Show robot pose (using Pose2D from turners)
+        inline void show_robot_pose(std::shared_ptr<rerun::RecordingStream> rec, const turners::Pose2D &pose,
                                     const std::string &entity_path = "robot", const rerun::Color &color = {255, 255, 0},
                                     float scale = 1.0f) {
             // Robot position
@@ -553,8 +543,8 @@ namespace farmtrax {
 
             // Robot orientation (arrow)
             float arrow_length = 0.5f * scale;
-            float end_x = pose.point.x + arrow_length * std::cos(pose.angle.yaw);
-            float end_y = pose.point.y + arrow_length * std::sin(pose.angle.yaw);
+            float end_x = pose.point.x + arrow_length * std::cos(pose.yaw);
+            float end_y = pose.point.y + arrow_length * std::sin(pose.yaw);
 
             std::vector<rerun::Position3D> orientation_line = {
                 {static_cast<float>(pose.point.x), static_cast<float>(pose.point.y), 0.0f}, {end_x, end_y, 0.0f}};

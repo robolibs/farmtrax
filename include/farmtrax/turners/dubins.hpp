@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
-#include <concord/concord.hpp>
+#include <datapod/datapod.hpp>
 #include <functional>
 #include <limits>
 #include <numeric>
@@ -17,6 +17,36 @@
 namespace farmtrax {
     namespace turners {
 
+        /**
+         * @brief Simple 2D pose for path planning with position and heading angle
+         *
+         * This is a lightweight struct specifically for 2D path planning algorithms
+         * like Dubins and Reeds-Shepp that work with (x, y, yaw) configurations.
+         */
+        struct Pose2D {
+            datapod::Point point; // Position (x, y, z - typically z=0 for 2D)
+            double yaw = 0.0;     // Heading angle in radians
+
+            inline Pose2D() = default;
+            inline Pose2D(double x, double y, double heading) : point(x, y, 0.0), yaw(heading) {}
+            inline Pose2D(const datapod::Point &p, double heading) : point(p), yaw(heading) {}
+
+            // Convert to/from datapod::Pose (uses quaternion for rotation)
+            inline datapod::Pose to_pose() const {
+                datapod::Pose pose;
+                pose.point = point;
+                pose.rotation = datapod::Quaternion::from_euler(0.0, 0.0, yaw);
+                return pose;
+            }
+
+            static inline Pose2D from_pose(const datapod::Pose &pose) {
+                Pose2D p2d;
+                p2d.point = pose.point;
+                p2d.yaw = pose.rotation.to_euler().yaw;
+                return p2d;
+            }
+        };
+
         enum class DubinsSegmentType { LEFT = 'L', STRAIGHT = 'S', RIGHT = 'R' };
 
         struct DubinsSegment {
@@ -26,7 +56,7 @@ namespace farmtrax {
 
         struct DubinsPath {
             std::vector<DubinsSegment> segments;
-            std::vector<concord::Pose> waypoints;
+            std::vector<Pose2D> waypoints;
             double total_length;
             std::string name;
 
@@ -259,8 +289,7 @@ namespace farmtrax {
           public:
             inline Dubins(double min_turning_radius) : radius_(min_turning_radius), ds_(min_turning_radius) {}
 
-            inline DubinsPath plan_path(const concord::Pose &start, const concord::Pose &end,
-                                        double step_size = 0.1) const {
+            inline DubinsPath plan_path(const Pose2D &start, const Pose2D &end, double step_size = 0.1) const {
                 auto all_paths = get_all_paths(start, end, step_size);
 
                 if (all_paths.empty()) {
@@ -275,13 +304,13 @@ namespace farmtrax {
                 return *shortest;
             }
 
-            inline std::vector<DubinsPath> get_all_paths(const concord::Pose &start, const concord::Pose &end,
+            inline std::vector<DubinsPath> get_all_paths(const Pose2D &start, const Pose2D &end,
                                                          double step_size = 0.1) const {
                 std::vector<DubinsPath> paths;
 
                 // Convert to DubinsStateSpace format
-                double q0[3] = {start.point.x, start.point.y, start.angle.yaw};
-                double q1[3] = {end.point.x, end.point.y, end.angle.yaw};
+                double q0[3] = {start.point.x, start.point.y, start.yaw};
+                double q1[3] = {end.point.x, end.point.y, end.yaw};
 
                 // Generate all 6 possible Dubins paths
                 std::vector<std::function<DubinsStateSpace::DubinsPath(double, double, double)>> planners = {
@@ -331,10 +360,7 @@ namespace farmtrax {
                             double qnew[3] = {0.0, 0.0, 0.0};
                             ds_.interpolate(q0, dubins_path, seg / radius_, qnew);
 
-                            concord::Pose pose;
-                            pose.point.x = qnew[0];
-                            pose.point.y = qnew[1];
-                            pose.angle.yaw = qnew[2];
+                            Pose2D pose(qnew[0], qnew[1], qnew[2]);
                             path.waypoints.push_back(pose);
                         }
 

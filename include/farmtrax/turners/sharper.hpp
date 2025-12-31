@@ -1,8 +1,8 @@
 #pragma once
 
+#include "dubins.hpp" // For Pose2D
 #include <algorithm>
 #include <cmath>
-#include <concord/concord.hpp>
 #include <vector>
 
 #ifndef M_PI
@@ -27,7 +27,7 @@ namespace farmtrax {
         class Sharper {
           public:
             struct SharpTurnPath {
-                std::vector<concord::Pose> waypoints;
+                std::vector<Pose2D> waypoints;
                 std::vector<std::string> segment_types; // "approach", "arc", "exit", etc.
                 double total_length;
                 std::string pattern_name; // "three_point", "bulb", "fishtail"
@@ -47,16 +47,11 @@ namespace farmtrax {
              * @param pattern Type of turn: "three_point", "bulb", "fishtail", "auto"
              * @return SharpTurnPath with waypoints and metadata
              */
-            inline SharpTurnPath plan_sharp_turn_at_point(const concord::Point &turning_point, double old_heading,
+            inline SharpTurnPath plan_sharp_turn_at_point(const datapod::Point &turning_point, double old_heading,
                                                           double new_heading,
                                                           const std::string &pattern = "auto") const {
-                concord::Pose start;
-                start.point = turning_point;
-                start.angle.yaw = old_heading;
-
-                concord::Pose end;
-                end.point = turning_point;
-                end.angle.yaw = new_heading;
+                Pose2D start(turning_point, old_heading);
+                Pose2D end(turning_point, new_heading);
 
                 return plan_sharp_turn(start, end, pattern);
             }
@@ -70,7 +65,7 @@ namespace farmtrax {
              * @param pattern Type of turn: "three_point", "bulb", "fishtail", "auto"
              * @return SharpTurnPath with waypoints and metadata
              */
-            inline SharpTurnPath plan_sharp_turn(const concord::Pose &start, const concord::Pose &end,
+            inline SharpTurnPath plan_sharp_turn(const Pose2D &start, const Pose2D &end,
                                                  const std::string &pattern = "auto") const {
                 double turn_angle = calculate_turn_angle(start, end);
 
@@ -92,7 +87,7 @@ namespace farmtrax {
              * Used when machine needs to change direction at the same point
              * Pattern: forward along old heading -> reverse with turn -> forward along new heading
              */
-            inline SharpTurnPath generate_three_point_turn(const concord::Pose &start, const concord::Pose &end,
+            inline SharpTurnPath generate_three_point_turn(const Pose2D &start, const Pose2D &end,
                                                            double turn_angle) const {
                 SharpTurnPath path;
                 path.pattern_name = "three_point";
@@ -103,17 +98,17 @@ namespace farmtrax {
                 path.waypoints.push_back(start);
                 path.segment_types.push_back("start");
 
-                concord::Pose forward_point;
-                forward_point.point.x = start.point.x + forward_dist * cos(start.angle.yaw);
-                forward_point.point.y = start.point.y + forward_dist * sin(start.angle.yaw);
-                forward_point.angle.yaw = start.angle.yaw;
+                Pose2D forward_point;
+                forward_point.point.x = start.point.x + forward_dist * cos(start.yaw);
+                forward_point.point.y = start.point.y + forward_dist * sin(start.yaw);
+                forward_point.yaw = start.yaw;
                 path.waypoints.push_back(forward_point);
                 path.segment_types.push_back("forward_along_old_heading");
 
-                concord::Pose reverse_point;
-                reverse_point.point.x = start.point.x - reverse_dist * cos(end.angle.yaw);
-                reverse_point.point.y = start.point.y - reverse_dist * sin(end.angle.yaw);
-                reverse_point.angle.yaw = end.angle.yaw;
+                Pose2D reverse_point;
+                reverse_point.point.x = start.point.x - reverse_dist * cos(end.yaw);
+                reverse_point.point.y = start.point.y - reverse_dist * sin(end.yaw);
+                reverse_point.yaw = end.yaw;
                 path.waypoints.push_back(reverse_point);
                 path.segment_types.push_back("reverse_with_turn");
 
@@ -128,8 +123,7 @@ namespace farmtrax {
              * @brief Generate a bulb turn
              * A wider turn that looks like a light bulb shape
              */
-            inline SharpTurnPath generate_bulb_turn(const concord::Pose &start, const concord::Pose &end,
-                                                    double turn_angle) const {
+            inline SharpTurnPath generate_bulb_turn(const Pose2D &start, const Pose2D &end, double turn_angle) const {
                 SharpTurnPath path;
                 path.pattern_name = "bulb";
 
@@ -141,18 +135,18 @@ namespace farmtrax {
                 int num_bulb_points = 5;
                 for (int i = 1; i <= num_bulb_points; ++i) {
                     double t = i / double(num_bulb_points + 1);
-                    double current_angle = normalize_angle(start.angle.yaw + turn_angle * t);
+                    double current_angle = normalize_angle(start.yaw + turn_angle * t);
 
                     double bulb_factor = sin(M_PI * t) * bulb_radius;
                     double perpendicular_angle = current_angle + M_PI / 2;
 
-                    concord::Pose bulb_point;
+                    Pose2D bulb_point;
                     bulb_point.point.x = start.point.x + radius_ * t * cos(current_angle);
                     bulb_point.point.y = start.point.y + radius_ * t * sin(current_angle);
 
                     bulb_point.point.x += bulb_factor * cos(perpendicular_angle);
                     bulb_point.point.y += bulb_factor * sin(perpendicular_angle);
-                    bulb_point.angle.yaw = current_angle;
+                    bulb_point.yaw = current_angle;
 
                     path.waypoints.push_back(bulb_point);
                     path.segment_types.push_back("bulb_arc");
@@ -169,7 +163,7 @@ namespace farmtrax {
              * @brief Generate a fishtail turn
              * An S-shaped turn that extends beyond the corner
              */
-            inline SharpTurnPath generate_fishtail_turn(const concord::Pose &start, const concord::Pose &end,
+            inline SharpTurnPath generate_fishtail_turn(const Pose2D &start, const Pose2D &end,
                                                         double turn_angle) const {
                 SharpTurnPath path;
                 path.pattern_name = "fishtail";
@@ -179,33 +173,33 @@ namespace farmtrax {
                 path.waypoints.push_back(start);
                 path.segment_types.push_back("start");
 
-                concord::Pose approach;
-                approach.point.x = start.point.x + 0.5 * machine_length_ * cos(start.angle.yaw);
-                approach.point.y = start.point.y + 0.5 * machine_length_ * sin(start.angle.yaw);
-                approach.angle.yaw = start.angle.yaw;
+                Pose2D approach;
+                approach.point.x = start.point.x + 0.5 * machine_length_ * cos(start.yaw);
+                approach.point.y = start.point.y + 0.5 * machine_length_ * sin(start.yaw);
+                approach.yaw = start.yaw;
                 path.waypoints.push_back(approach);
                 path.segment_types.push_back("approach");
 
-                double tail_angle = normalize_angle(start.angle.yaw - turn_angle * 0.4);
-                concord::Pose tail_point;
+                double tail_angle = normalize_angle(start.yaw - turn_angle * 0.4);
+                Pose2D tail_point;
                 tail_point.point.x = approach.point.x + extend_dist * cos(tail_angle);
                 tail_point.point.y = approach.point.y + extend_dist * sin(tail_angle);
-                tail_point.angle.yaw = tail_angle;
+                tail_point.yaw = tail_angle;
                 path.waypoints.push_back(tail_point);
                 path.segment_types.push_back("tail_out");
 
-                double transition_angle = normalize_angle(start.angle.yaw + turn_angle * 0.7);
-                concord::Pose transition_point;
+                double transition_angle = normalize_angle(start.yaw + turn_angle * 0.7);
+                Pose2D transition_point;
                 transition_point.point.x = tail_point.point.x + machine_length_ * cos(transition_angle);
                 transition_point.point.y = tail_point.point.y + machine_length_ * sin(transition_angle);
-                transition_point.angle.yaw = transition_angle;
+                transition_point.yaw = transition_angle;
                 path.waypoints.push_back(transition_point);
                 path.segment_types.push_back("transition");
 
-                concord::Pose final_approach;
-                final_approach.point.x = end.point.x - 0.5 * machine_length_ * cos(end.angle.yaw);
-                final_approach.point.y = end.point.y - 0.5 * machine_length_ * sin(end.angle.yaw);
-                final_approach.angle.yaw = end.angle.yaw;
+                Pose2D final_approach;
+                final_approach.point.x = end.point.x - 0.5 * machine_length_ * cos(end.yaw);
+                final_approach.point.y = end.point.y - 0.5 * machine_length_ * sin(end.yaw);
+                final_approach.yaw = end.yaw;
                 path.waypoints.push_back(final_approach);
                 path.segment_types.push_back("final_approach");
 
@@ -221,24 +215,24 @@ namespace farmtrax {
              * Returns the two line segments that define the turn geometry
              */
             struct TurnGeometry {
-                concord::Point forward_end; // End of forward line (old heading)
-                concord::Point reverse_end; // End of reverse line (new heading)
-                concord::Point turn_center; // Center point of turn
+                datapod::Point forward_end; // End of forward line (old heading)
+                datapod::Point reverse_end; // End of reverse line (new heading)
+                datapod::Point turn_center; // Center point of turn
                 double turn_angle;          // Angle between headings
             };
 
-            inline TurnGeometry calculate_turn_geometry(const concord::Pose &start, const concord::Pose &end) const {
+            inline TurnGeometry calculate_turn_geometry(const Pose2D &start, const Pose2D &end) const {
                 TurnGeometry geom;
                 geom.turn_center = start.point;
                 geom.turn_angle = calculate_turn_angle(start, end);
 
                 // Forward line along old heading
-                geom.forward_end.x = start.point.x + machine_length_ * cos(start.angle.yaw);
-                geom.forward_end.y = start.point.y + machine_length_ * sin(start.angle.yaw);
+                geom.forward_end.x = start.point.x + machine_length_ * cos(start.yaw);
+                geom.forward_end.y = start.point.y + machine_length_ * sin(start.yaw);
 
                 // Reverse line along new heading (backwards from center)
-                geom.reverse_end.x = start.point.x - machine_length_ * cos(end.angle.yaw);
-                geom.reverse_end.y = start.point.y - machine_length_ * sin(end.angle.yaw);
+                geom.reverse_end.x = start.point.x - machine_length_ * cos(end.yaw);
+                geom.reverse_end.y = start.point.y - machine_length_ * sin(end.yaw);
 
                 return geom;
             }
@@ -248,8 +242,8 @@ namespace farmtrax {
             double machine_length_;
             double machine_width_;
 
-            inline double calculate_turn_angle(const concord::Pose &start, const concord::Pose &end) const {
-                return normalize_angle(end.angle.yaw - start.angle.yaw);
+            inline double calculate_turn_angle(const Pose2D &start, const Pose2D &end) const {
+                return normalize_angle(end.yaw - start.yaw);
             }
 
             inline double normalize_angle(double angle) const {
@@ -269,8 +263,7 @@ namespace farmtrax {
                 }
             }
 
-            inline SharpTurnPath select_best_pattern(const concord::Pose &start, const concord::Pose &end,
-                                                     double turn_angle) const {
+            inline SharpTurnPath select_best_pattern(const Pose2D &start, const Pose2D &end, double turn_angle) const {
                 double angle_deg = fabs(turn_angle) * 180.0 / M_PI;
 
                 double dist = sqrt(pow(end.point.x - start.point.x, 2) + pow(end.point.y - start.point.y, 2));

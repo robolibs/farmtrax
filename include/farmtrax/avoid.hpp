@@ -2,42 +2,43 @@
 
 #include "farmtrax/field.hpp"
 #include "farmtrax/utils/utils.hpp"
-#include <boost/geometry.hpp>
-#include <boost/geometry/algorithms/buffer.hpp>
-#include <boost/geometry/algorithms/intersection.hpp>
-#include <boost/geometry/algorithms/touches.hpp>
-#include <boost/geometry/algorithms/within.hpp>
-#include <boost/geometry/geometries/multi_polygon.hpp>
-#include <boost/geometry/strategies/buffer.hpp>
+
+#include <datapod/datapod.hpp>
+#include <temp/geometry.hpp>
+
+#include <iostream>
 #include <memory>
 #include <vector>
 
 namespace farmtrax {
 
+    /**
+     * @brief Obstacle avoidance for swath planning
+     *
+     * Takes obstacles as polygons and modifies swaths to avoid them.
+     * Supports inflation (buffer) of obstacles for safety margins.
+     */
     class ObstacleAvoider {
-        std::vector<BPolygon> obstacles_;
-        std::vector<BPolygon> inflated_obstacles_;
+        std::vector<datapod::Polygon> obstacles_;
+        std::vector<datapod::Polygon> inflated_obstacles_;
         float inflation_distance_;
-        concord::Datum datum_;
+        datapod::Geo datum_;
 
       public:
-        /// Constructor takes array of polygons as obstacles
-        inline explicit ObstacleAvoider(const std::vector<BPolygon> &obstacles,
-                                        const concord::Datum &datum = concord::Datum{})
+        /**
+         * @brief Constructor takes array of polygons as obstacles
+         */
+        inline explicit ObstacleAvoider(const std::vector<datapod::Polygon> &obstacles,
+                                        const datapod::Geo &datum = datapod::Geo{})
             : obstacles_(obstacles), inflation_distance_(0.0f), datum_(datum) {}
 
-        /// Constructor with concord::Polygon obstacles
-        inline explicit ObstacleAvoider(const std::vector<concord::Polygon> &obstacles,
-                                        const concord::Datum &datum = concord::Datum{})
-            : datum_(datum) {
-            obstacles_.reserve(obstacles.size());
-            for (const auto &poly : obstacles) {
-                obstacles_.push_back(utils::to_boost(poly));
-            }
-            inflation_distance_ = 0.0f;
-        }
-
-        /// Main avoidance method
+        /**
+         * @brief Main avoidance method
+         *
+         * @param input_swaths Swaths to process
+         * @param inflation_distance Distance to inflate obstacles
+         * @return Processed swaths that avoid obstacles
+         */
         inline std::vector<std::shared_ptr<Swath>> avoid(const std::vector<std::shared_ptr<const Swath>> &input_swaths,
                                                          float inflation_distance) {
             inflation_distance_ = inflation_distance;
@@ -61,7 +62,9 @@ namespace farmtrax {
             return result_swaths;
         }
 
-        /// Overload for non-const swaths
+        /**
+         * @brief Overload for non-const swaths
+         */
         inline std::vector<std::shared_ptr<Swath>> avoid(const std::vector<std::shared_ptr<Swath>> &input_swaths,
                                                          float inflation_distance) {
             std::vector<std::shared_ptr<const Swath>> const_swaths;
@@ -72,64 +75,35 @@ namespace farmtrax {
             return avoid(const_swaths, inflation_distance);
         }
 
-        /// Get original obstacles
-        inline const std::vector<BPolygon> &get_obstacles() const { return obstacles_; }
+        /**
+         * @brief Get original obstacles
+         */
+        inline const std::vector<datapod::Polygon> &get_obstacles() const { return obstacles_; }
 
-        /// Get inflated obstacles
-        inline const std::vector<BPolygon> &get_inflated_obstacles() const { return inflated_obstacles_; }
+        /**
+         * @brief Get inflated obstacles
+         */
+        inline const std::vector<datapod::Polygon> &get_inflated_obstacles() const { return inflated_obstacles_; }
 
       private:
-        /// Inflate all obstacles by the given distance
+        /**
+         * @brief Inflate all obstacles by the given distance
+         */
         inline void inflate_obstacles() {
             inflated_obstacles_.clear();
             inflated_obstacles_.reserve(obstacles_.size());
 
             for (const auto &obstacle : obstacles_) {
-                BPolygon inflated = inflate_polygon(obstacle, inflation_distance_);
-                if (!boost::geometry::is_empty(inflated)) {
+                datapod::Polygon inflated = temp::expand_polygon(obstacle, inflation_distance_);
+                if (!inflated.vertices.empty() && inflated.vertices.size() >= 3) {
                     inflated_obstacles_.push_back(inflated);
                 }
             }
         }
 
-        /// Inflate a single polygon
-        inline BPolygon inflate_polygon(const BPolygon &polygon, float distance) const {
-            boost::geometry::model::multi_polygon<BPolygon> buffered;
-
-            // Buffer strategy components
-            boost::geometry::strategy::buffer::distance_symmetric<double> dist_strategy(distance);
-            boost::geometry::strategy::buffer::side_straight side_strategy;
-            boost::geometry::strategy::buffer::join_miter join_strategy;
-            boost::geometry::strategy::buffer::end_flat end_strategy;
-            boost::geometry::strategy::buffer::point_square point_strategy;
-
-            try {
-                boost::geometry::buffer(polygon, buffered, dist_strategy, side_strategy, join_strategy, end_strategy,
-                                        point_strategy);
-            } catch (const std::exception &e) {
-                std::cerr << "Buffer operation failed: " << e.what() << std::endl;
-                return polygon; // Return original if buffering fails
-            }
-
-            // Return the largest polygon from the multi_polygon result
-            if (!buffered.empty()) {
-                const BPolygon *largest = &buffered.front();
-                double max_area = boost::geometry::area(*largest);
-
-                for (const auto &poly : buffered) {
-                    double area = boost::geometry::area(poly);
-                    if (area > max_area) {
-                        max_area = area;
-                        largest = &poly;
-                    }
-                }
-                return *largest;
-            }
-
-            return polygon; // Return original if no result
-        }
-
-        /// Process a single swath against all obstacles
+        /**
+         * @brief Process a single swath against all obstacles
+         */
         inline std::vector<std::shared_ptr<Swath>> process_swath(const std::shared_ptr<const Swath> &swath) {
             std::vector<std::shared_ptr<Swath>> result;
 
@@ -137,13 +111,10 @@ namespace farmtrax {
                 return result;
             }
 
-            // Convert swath to boost linestring
-            BLineString swath_line = utils::to_boost(swath->line);
-
             // Check if swath intersects with any obstacle
             bool intersects = false;
             for (const auto &obstacle : inflated_obstacles_) {
-                if (boost::geometry::intersects(swath_line, obstacle)) {
+                if (temp::intersects_segment_polygon(swath->line, obstacle)) {
                     intersects = true;
                     break;
                 }
@@ -161,7 +132,9 @@ namespace farmtrax {
             return result;
         }
 
-        /// Cut swath around obstacles
+        /**
+         * @brief Cut swath around obstacles using difference operation
+         */
         inline std::vector<std::shared_ptr<Swath>>
         cut_swath_around_obstacles(const std::shared_ptr<const Swath> &swath) {
             std::vector<std::shared_ptr<Swath>> result;
@@ -170,45 +143,52 @@ namespace farmtrax {
                 return result;
             }
 
-            BLineString swath_line = utils::to_boost(swath->line);
+            // Start with the original segment
+            std::vector<datapod::Segment> current_segments;
+            current_segments.push_back(swath->line);
 
-            // For each obstacle, check intersection and cut the swath
+            // For each obstacle, compute the difference
             for (const auto &obstacle : inflated_obstacles_) {
-                std::vector<BLineString> differences;
-                try {
-                    boost::geometry::difference(swath_line, obstacle, differences);
+                std::vector<datapod::Segment> new_segments;
 
-                    // Convert back to Swath objects
-                    for (const auto &diff_line : differences) {
-                        if (diff_line.size() >= 2) {
-                            concord::Point start_point{diff_line.front().x(), diff_line.front().y(), 0.0};
-                            concord::Point end_point{diff_line.back().x(), diff_line.back().y(), 0.0};
+                for (const auto &seg : current_segments) {
+                    // Use difference operation from temp/boolean.hpp
+                    auto differences = temp::difference_segment_polygon(seg, obstacle);
 
-                            auto cut_swath =
-                                std::make_shared<Swath>(create_swath(start_point, end_point, swath->type, ""));
-                            result.push_back(cut_swath);
-                        }
+                    if (differences.empty()) {
+                        // Segment is entirely inside obstacle, skip it
+                        continue;
                     }
 
-                    // Add connection swaths around obstacles
-                    if (!differences.empty()) {
-                        // Calculate connection points around the obstacle
-                        for (size_t i = 0; i < differences.size() - 1; ++i) {
-                            const auto &current_end = differences[i].back();
-                            const auto &next_start = differences[i + 1].front();
+                    new_segments.insert(new_segments.end(), differences.begin(), differences.end());
+                }
 
-                            concord::Point connection_start{current_end.x(), current_end.y(), 0.0};
-                            concord::Point connection_end{next_start.x(), next_start.y(), 0.0};
+                current_segments = std::move(new_segments);
+            }
 
-                            auto connection_swath = std::make_shared<Swath>(
-                                create_swath(connection_start, connection_end, SwathType::Around, ""));
-                            result.push_back(connection_swath);
-                        }
-                    }
-                } catch (const std::exception &e) {
-                    // If difference operation fails, fall back to simple approach
-                    // Just skip the problematic part for now
+            // Convert remaining segments to Swath objects
+            for (size_t i = 0; i < current_segments.size(); ++i) {
+                const auto &seg = current_segments[i];
+
+                // Skip very short segments
+                if (seg.length() < 0.1) {
                     continue;
+                }
+
+                auto cut_swath = std::make_shared<Swath>(create_swath(seg.start, seg.end, swath->type, ""));
+                result.push_back(cut_swath);
+
+                // Add connection swaths between segments
+                if (i < current_segments.size() - 1) {
+                    const auto &next_seg = current_segments[i + 1];
+
+                    // Only add connection if there's a gap
+                    double gap = seg.end.distance_to(next_seg.start);
+                    if (gap > 0.1) {
+                        auto connection_swath =
+                            std::make_shared<Swath>(create_swath(seg.end, next_seg.start, SwathType::Around, ""));
+                        result.push_back(connection_swath);
+                    }
                 }
             }
 

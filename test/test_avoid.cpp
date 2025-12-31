@@ -2,31 +2,38 @@
 #include "farmtrax/avoid.hpp"
 #include "farmtrax/field.hpp"
 
+// Helper function to create AABB from a Segment
+inline datapod::AABB segment_to_aabb(const datapod::Segment &seg) {
+    return datapod::AABB{datapod::Point{std::min(seg.start.x, seg.end.x), std::min(seg.start.y, seg.end.y),
+                                        std::min(seg.start.z, seg.end.z)},
+                         datapod::Point{std::max(seg.start.x, seg.end.x), std::max(seg.start.y, seg.end.y),
+                                        std::max(seg.start.z, seg.end.z)}};
+}
+
 // Helper function to create a simple obstacle polygon
-concord::Polygon create_obstacle(const concord::Datum &datum = concord::Datum{}) {
-    concord::Polygon obstacle;
+datapod::Polygon create_obstacle(const datapod::Geo &datum = datapod::Geo{}) {
+    datapod::Polygon obstacle;
     // Create a simple square obstacle at (50,25) with 10m sides
-    obstacle.addPoint(concord::Point{45.0, 20.0, 0.0});
-    obstacle.addPoint(concord::Point{55.0, 20.0, 0.0});
-    obstacle.addPoint(concord::Point{55.0, 30.0, 0.0});
-    obstacle.addPoint(concord::Point{45.0, 30.0, 0.0});
-    obstacle.addPoint(concord::Point{45.0, 20.0, 0.0}); // Close the polygon
+    obstacle.vertices.push_back(datapod::Point{45.0, 20.0, 0.0});
+    obstacle.vertices.push_back(datapod::Point{55.0, 20.0, 0.0});
+    obstacle.vertices.push_back(datapod::Point{55.0, 30.0, 0.0});
+    obstacle.vertices.push_back(datapod::Point{45.0, 30.0, 0.0});
+    obstacle.vertices.push_back(datapod::Point{45.0, 20.0, 0.0}); // Close the polygon
     return obstacle;
 }
 
 // Helper to create a field with obstacle
-std::pair<farmtrax::Field, concord::Polygon>
-create_field_with_obstacle(const concord::Datum &datum = concord::Datum{}) {
+std::pair<farmtrax::Field, datapod::Polygon> create_field_with_obstacle(const datapod::Geo &datum = datapod::Geo{}) {
     // Create a rectangular field - smaller and simpler for testing
-    concord::Polygon field_poly;
-    field_poly.addPoint(concord::Point{0.0, 0.0, 0.0});
-    field_poly.addPoint(concord::Point{100.0, 0.0, 0.0});
-    field_poly.addPoint(concord::Point{100.0, 50.0, 0.0});
-    field_poly.addPoint(concord::Point{0.0, 50.0, 0.0});
-    field_poly.addPoint(concord::Point{0.0, 0.0, 0.0}); // Close the polygon
+    datapod::Polygon field_poly;
+    field_poly.vertices.push_back(datapod::Point{0.0, 0.0, 0.0});
+    field_poly.vertices.push_back(datapod::Point{100.0, 0.0, 0.0});
+    field_poly.vertices.push_back(datapod::Point{100.0, 50.0, 0.0});
+    field_poly.vertices.push_back(datapod::Point{0.0, 50.0, 0.0});
+    field_poly.vertices.push_back(datapod::Point{0.0, 0.0, 0.0}); // Close the polygon
 
     // Create obstacle
-    concord::Polygon obstacle = create_obstacle(datum);
+    datapod::Polygon obstacle = create_obstacle(datum);
 
     // Create minimal Field object
     farmtrax::Field field(field_poly, datum, false, 1000.0); // Using large area threshold to avoid partitioning
@@ -35,11 +42,11 @@ create_field_with_obstacle(const concord::Datum &datum = concord::Datum{}) {
 }
 
 TEST_CASE("ObstacleAvoider Construction") {
-    concord::Datum datum{51.0, 5.0, 0.0};
+    datapod::Geo datum{51.0, 5.0, 0.0};
 
     // Create an obstacle
-    concord::Polygon obstacle = create_obstacle(datum);
-    std::vector<concord::Polygon> obstacles = {obstacle};
+    datapod::Polygon obstacle = create_obstacle(datum);
+    std::vector<datapod::Polygon> obstacles = {obstacle};
 
     // Create avoider
     farmtrax::ObstacleAvoider avoider(obstacles, datum);
@@ -47,23 +54,25 @@ TEST_CASE("ObstacleAvoider Construction") {
     // No real way to test internal state, but at least we verify construction doesn't throw
 }
 
-TEST_CASE("Obstacle Avoidance with Concord Polygons") {
-    concord::Datum datum{51.0, 5.0, 0.0};
+TEST_CASE("Obstacle Avoidance with Datapod Polygons") {
+    datapod::Geo datum{51.0, 5.0, 0.0};
 
     // Create field with obstacle
     auto [field, obstacle] = create_field_with_obstacle(datum);
-    std::vector<concord::Polygon> obstacles = {obstacle};
+    std::vector<datapod::Polygon> obstacles = {obstacle};
 
     // Create avoider
     farmtrax::ObstacleAvoider avoider(obstacles, datum);
 
     // Print obstacle info for debugging
-    std::cout << "Obstacle polygon points: " << obstacle.getPoints().size() << std::endl;
+    std::cout << "Obstacle polygon points: " << obstacle.vertices.size() << std::endl;
     std::cout << "Obstacle coords: ";
-    for (const auto &pt : obstacle.getPoints()) {
+    for (const auto &pt : obstacle.vertices) {
         std::cout << "(" << pt.x << "," << pt.y << ") ";
     }
-    std::cout << std::endl; // Create our own test swaths
+    std::cout << std::endl;
+
+    // Create our own test swaths
     std::vector<std::shared_ptr<const farmtrax::Swath>> input_swaths;
 
     // Create vertical swaths that will cross the obstacle at 50,25
@@ -73,17 +82,13 @@ TEST_CASE("Obstacle Avoidance with Concord Polygons") {
         swath->uuid = "swath_" + std::to_string(static_cast<int>(x));
 
         // Create a vertical line
-        concord::Point start(x, 0.0, 0.0);
-        concord::Point end(x, 50.0, 0.0);
-        swath->line.setStart(start);
-        swath->line.setEnd(end);
-
-        // Create the boost linestring
-        swath->b_line.push_back(farmtrax::BPoint(x, 0.0));
-        swath->b_line.push_back(farmtrax::BPoint(x, 50.0));
+        datapod::Point start(x, 0.0, 0.0);
+        datapod::Point end(x, 50.0, 0.0);
+        swath->line.start = start;
+        swath->line.end = end;
 
         // Create the bounding box
-        swath->bounding_box = boost::geometry::return_envelope<farmtrax::BBox>(swath->b_line);
+        swath->bounding_box = segment_to_aabb(swath->line);
 
         input_swaths.push_back(swath);
     }
@@ -118,11 +123,11 @@ TEST_CASE("Obstacle Avoidance with Concord Polygons") {
 }
 
 TEST_CASE("Obstacle Avoidance with Different Inflation Distances") {
-    concord::Datum datum{51.0, 5.0, 0.0};
+    datapod::Geo datum{51.0, 5.0, 0.0};
 
     // Create field with obstacle
     auto [field, obstacle] = create_field_with_obstacle(datum);
-    std::vector<concord::Polygon> obstacles = {obstacle};
+    std::vector<datapod::Polygon> obstacles = {obstacle};
 
     // Create avoider
     farmtrax::ObstacleAvoider avoider(obstacles, datum);
@@ -137,17 +142,13 @@ TEST_CASE("Obstacle Avoidance with Different Inflation Distances") {
         swath_ptr->uuid = "swath_" + std::to_string(static_cast<int>(x));
 
         // Create a vertical line
-        concord::Point start(x, 0.0, 0.0);
-        concord::Point end(x, 50.0, 0.0);
-        swath_ptr->line.setStart(start);
-        swath_ptr->line.setEnd(end);
-
-        // Create the boost linestring
-        swath_ptr->b_line.push_back(farmtrax::BPoint(x, 0.0));
-        swath_ptr->b_line.push_back(farmtrax::BPoint(x, 50.0));
+        datapod::Point start(x, 0.0, 0.0);
+        datapod::Point end(x, 50.0, 0.0);
+        swath_ptr->line.start = start;
+        swath_ptr->line.end = end;
 
         // Ensure bounding box is computed
-        swath_ptr->bounding_box = boost::geometry::return_envelope<farmtrax::BBox>(swath_ptr->b_line);
+        swath_ptr->bounding_box = segment_to_aabb(swath_ptr->line);
 
         input_swaths.push_back(swath_ptr);
     }
