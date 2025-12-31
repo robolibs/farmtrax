@@ -23,21 +23,26 @@ int main() {
     }
 
     // Define the world datum (reference point)
-    // Note: Coordinate transformation from WGS84 to ENU requires concord library
-    // which currently has include order issues. Using pre-converted ENU coordinates.
     datapod::Geo world_datum{51.98954034749562, 5.6584737410504715, 53.801823};
 
-    // Pre-converted ENU coordinates for the field boundary
-    // Original WGS84 coordinates were converted using concord::frame::to_enu()
+    // Pre-converted ENU coordinates from original WGS84 field boundary
+    // Original WGS84 coordinates:
+    //   (51.98765392402663, 5.660072928621929)
+    //   (51.98816428304869, 5.661754957062072)
+    //   (51.989850316694316, 5.660416700858434)
+    //   (51.990417354104295, 5.662166255987472)
+    //   (51.991078888673854, 5.660969191951295)
+    //   (51.989479848375254, 5.656874619070777)
+    //   (51.988156722216644, 5.657715633290422)
     datapod::Polygon poly;
-    poly.vertices.push_back(datapod::Point{-136.5, -209.3, 0.0});
-    poly.vertices.push_back(datapod::Point{-16.8, -152.5, 0.0});
-    poly.vertices.push_back(datapod::Point{-122.5, 34.3, 0.0});
-    poly.vertices.push_back(datapod::Point{-3.8, 120.5, 0.0});
-    poly.vertices.push_back(datapod::Point{-79.2, 170.8, 0.0});
-    poly.vertices.push_back(datapod::Point{-198.5, 58.3, 0.0});
-    poly.vertices.push_back(datapod::Point{-139.8, -87.2, 0.0});
-    poly.vertices.push_back(datapod::Point{-136.5, -209.3, 0.0}); // Close
+    poly.vertices.push_back(datapod::Point{109.9, -209.9, 0.0});
+    poly.vertices.push_back(datapod::Point{225.4, -153.1, 0.0});
+    poly.vertices.push_back(datapod::Point{133.5, 34.5, 0.0});
+    poly.vertices.push_back(datapod::Point{253.6, 97.6, 0.0});
+    poly.vertices.push_back(datapod::Point{171.4, 171.2, 0.0});
+    poly.vertices.push_back(datapod::Point{-109.9, -6.7, 0.0});
+    poly.vertices.push_back(datapod::Point{-52.1, -154.0, 0.0});
+    poly.vertices.push_back(datapod::Point{109.9, -209.9, 0.0}); // Close
 
     farmtrax::Field field(poly, world_datum, true, 100000.0);
 
