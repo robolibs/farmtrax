@@ -2,6 +2,8 @@
 
 #ifdef HAS_RERUN
 
+#include <datapod/datapod.hpp>
+
 #include "../avoid.hpp"
 #include "../divy.hpp"
 #include "../field.hpp"
@@ -10,20 +12,115 @@
 #include "../turners/reeds_shepp.hpp"
 #include "rerun.hpp"
 #include <array>
+#include <rerun/archetypes/geo_line_strings.hpp>
+#include <rerun/components/geo_line_string.hpp>
+#include <rerun/components/lat_lon.hpp>
 #include <rerun/recording_stream.hpp>
 #include <rerun/result.hpp>
 #include <vector>
 
+#include <concord/frame/convert.hpp>
+
 namespace farmtrax {
     namespace visualize {
 
+        /**
+         * @brief Convert ENU point to WGS84 LatLon for geo visualization
+         */
+        inline rerun::LatLon enu_to_latlon(const datapod::Point &enu_pt, const datapod::Geo &datum) {
+            // Create ENU with origin
+            concord::frame::ENU enu{enu_pt.x, enu_pt.y, enu_pt.z, datum};
+            // Convert to WGS
+            auto wgs = concord::frame::to_wgs(enu);
+            return rerun::LatLon{float(wgs.latitude), float(wgs.longitude)};
+        }
+
+        inline void show_field(const farmtrax::Field &field, std::shared_ptr<rerun::RecordingStream> rec,
+                               const datapod::Geo &datum) {
+            // Show the main field border - ENU coordinates
+            std::vector<std::array<float, 3>> border_pts;
+            std::vector<rerun::LatLon> border_wgs;
+            for (auto const &p : field.get_border().vertices) {
+                border_pts.push_back({float(p.x), float(p.y), 0.0f});
+                border_wgs.push_back(enu_to_latlon(p, datum));
+            }
+
+            // Close the border polygon if not already closed
+            if (!border_pts.empty() &&
+                (border_pts.front()[0] != border_pts.back()[0] || border_pts.front()[1] != border_pts.back()[1])) {
+                border_pts.push_back(border_pts.front());
+                border_wgs.push_back(border_wgs.front());
+            }
+
+            std::cout << "Visualizing field border with " << border_pts.size() << " points" << std::endl;
+
+            // Log ENU coordinates (3D view)
+            rec->log_static("/field/border", rerun::LineStrips3D(rerun::components::LineStrip3D(border_pts))
+                                                 .with_colors({{rerun::Color(120, 70, 70)}})
+                                                 .with_radii({{0.2f}}));
+
+            // Log WGS84 coordinates (Map view)
+            auto geo_border = rerun::components::GeoLineString::from_lat_lon(border_wgs);
+            rec->log_static("/map/border", rerun::archetypes::GeoLineStrings(geo_border)
+                                               .with_colors({{rerun::Color(120, 70, 70)}})
+                                               .with_radii({{2.0f}}));
+
+            for (size_t i = 0; i < field.get_parts().size(); ++i) {
+                // Headlands
+                for (size_t j = 0; j < field.get_parts()[i].headlands.size(); ++j) {
+                    std::vector<std::array<float, 3>> pts;
+                    std::vector<rerun::LatLon> wgs_pts;
+                    for (auto const &p : field.get_parts()[i].headlands[j].polygon.vertices) {
+                        pts.push_back({float(p.x), float(p.y), 0.0f});
+                        wgs_pts.push_back(enu_to_latlon(p, datum));
+                    }
+                    // Close polygon
+                    if (!pts.empty() && (pts.front()[0] != pts.back()[0] || pts.front()[1] != pts.back()[1])) {
+                        pts.push_back(pts.front());
+                        wgs_pts.push_back(wgs_pts.front());
+                    }
+
+                    rec->log_static("/field/part" + std::to_string(i) + "/headland" + std::to_string(j),
+                                    rerun::LineStrips3D(rerun::components::LineStrip3D(pts))
+                                        .with_colors({{rerun::Color(70, 120, 70)}})
+                                        .with_radii({{0.2f}}));
+
+                    auto geo_headland = rerun::components::GeoLineString::from_lat_lon(wgs_pts);
+                    rec->log_static("/map/part" + std::to_string(i) + "/headland" + std::to_string(j),
+                                    rerun::archetypes::GeoLineStrings(geo_headland)
+                                        .with_colors({{rerun::Color(70, 120, 70)}})
+                                        .with_radii({{2.0f}}));
+                }
+
+                // Swaths
+                for (size_t j = 0; j < field.get_parts()[i].swaths.size(); ++j) {
+                    auto const &s = field.get_parts()[i].swaths[j];
+                    std::vector<std::array<float, 3>> pts = {{float(s.line.start.x), float(s.line.start.y), 0.0f},
+                                                             {float(s.line.end.x), float(s.line.end.y), 0.0f}};
+                    std::vector<rerun::LatLon> wgs_pts = {enu_to_latlon(s.line.start, datum),
+                                                          enu_to_latlon(s.line.end, datum)};
+
+                    rec->log_static("/field/part" + std::to_string(i) + "/swath" + std::to_string(j),
+                                    rerun::LineStrips3D(rerun::components::LineStrip3D(pts))
+                                        .with_colors({{rerun::Color(70, 70, 120)}})
+                                        .with_radii({{0.2f}}));
+
+                    auto geo_swath = rerun::components::GeoLineString::from_lat_lon(wgs_pts);
+                    rec->log_static("/map/part" + std::to_string(i) + "/swath" + std::to_string(j),
+                                    rerun::archetypes::GeoLineStrings(geo_swath)
+                                        .with_colors({{rerun::Color(70, 70, 120)}})
+                                        .with_radii({{2.0f}}));
+                }
+            }
+        }
+
+        // Backward compatible version without datum (no geo visualization)
         inline void show_field(const farmtrax::Field &field, std::shared_ptr<rerun::RecordingStream> rec) {
-            // Show the main field border
+            // Show the main field border - ENU coordinates only
             std::vector<std::array<float, 3>> border_pts;
             for (auto const &p : field.get_border().vertices)
                 border_pts.push_back({float(p.x), float(p.y), 0.0f});
 
-            // Close the border polygon if not already closed
             if (!border_pts.empty() &&
                 (border_pts.front()[0] != border_pts.back()[0] || border_pts.front()[1] != border_pts.back()[1])) {
                 border_pts.push_back(border_pts.front());
