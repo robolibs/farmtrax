@@ -2,6 +2,7 @@
 #include <iostream>
 #include <thread>
 
+#include <concord/concord.hpp>
 #include <datapod/datapod.hpp>
 
 #include "rerun/recording_stream.hpp"
@@ -22,27 +23,26 @@ int main() {
         return 1;
     }
 
-    // Define the world datum (reference point)
+    // WGS84 coordinates for the field boundary
+    std::vector<concord::earth::WGS> coordinates;
+    coordinates.push_back(concord::earth::WGS(51.98765392402663, 5.660072928621929, 0.0));
+    coordinates.push_back(concord::earth::WGS(51.98816428304869, 5.661754957062072, 0.0));
+    coordinates.push_back(concord::earth::WGS(51.989850316694316, 5.660416700858434, 0.0));
+    coordinates.push_back(concord::earth::WGS(51.990417354104295, 5.662166255987472, 0.0));
+    coordinates.push_back(concord::earth::WGS(51.991078888673854, 5.660969191951295, 0.0));
+    coordinates.push_back(concord::earth::WGS(51.989479848375254, 5.656874619070777, 0.0));
+    coordinates.push_back(concord::earth::WGS(51.988156722216644, 5.657715633290422, 0.0));
+    coordinates.push_back(concord::earth::WGS(51.98765392402663, 5.660072928621929, 0.0)); // Close
+
+    // Define the world datum (reference point for ENU conversion)
     datapod::Geo world_datum{51.98954034749562, 5.6584737410504715, 53.801823};
 
-    // Pre-converted ENU coordinates from original WGS84 field boundary
-    // Original WGS84 coordinates:
-    //   (51.98765392402663, 5.660072928621929)
-    //   (51.98816428304869, 5.661754957062072)
-    //   (51.989850316694316, 5.660416700858434)
-    //   (51.990417354104295, 5.662166255987472)
-    //   (51.991078888673854, 5.660969191951295)
-    //   (51.989479848375254, 5.656874619070777)
-    //   (51.988156722216644, 5.657715633290422)
+    // Convert WGS84 to ENU coordinates
     datapod::Polygon poly;
-    poly.vertices.push_back(datapod::Point{109.9, -209.9, 0.0});
-    poly.vertices.push_back(datapod::Point{225.4, -153.1, 0.0});
-    poly.vertices.push_back(datapod::Point{133.5, 34.5, 0.0});
-    poly.vertices.push_back(datapod::Point{253.6, 97.6, 0.0});
-    poly.vertices.push_back(datapod::Point{171.4, 171.2, 0.0});
-    poly.vertices.push_back(datapod::Point{-109.9, -6.7, 0.0});
-    poly.vertices.push_back(datapod::Point{-52.1, -154.0, 0.0});
-    poly.vertices.push_back(datapod::Point{109.9, -209.9, 0.0}); // Close
+    for (const auto &wgs_coord : coordinates) {
+        auto enu = concord::frame::to_enu(world_datum, wgs_coord);
+        poly.vertices.push_back(datapod::Point{enu.east(), enu.north(), enu.up()});
+    }
 
     farmtrax::Field field(poly, world_datum, true, 100000.0);
 
@@ -96,7 +96,7 @@ int main() {
     std::cout << "\n=== Field Processing with Area-Based Partitioning ===\n";
     std::cout << "Total field parts: " << part_cnt << "\n";
 
-    farmtrax::visualize::show_field(field, rec);
+    farmtrax::visualize::show_field(field, rec, world_datum);
     std::this_thread::sleep_for(std::chrono::seconds(2));
 
     for (size_t f = 0; f < field.get_parts().size(); f++) {
