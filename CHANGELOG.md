@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.0.4] - 2025-12-31
+
+### <!-- 1 -->🐛 Bug Fixes
+
+- Improve Rerun visualization logging paths
+
+### <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update dependencies and build configurations
+
 ## [0.0.3] - 2025-12-31
 
 ### Build
