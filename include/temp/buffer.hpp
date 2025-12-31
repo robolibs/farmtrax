@@ -111,13 +111,13 @@ namespace temp {
         }
 
         // For negative buffer (shrinking), check if polygon collapsed or self-intersects
-        // Simple check: if area changed sign, the polygon collapsed
+        // Simple check: if area changed sign or became too small, the polygon collapsed
         if (distance < 0) {
-            double orig_area = polygon.area();
             double new_area = result.area();
 
-            // If area is too small or changed sign, return empty polygon
-            if (new_area < 1e-10 || (orig_area > 0 && new_area < orig_area * 0.01)) {
+            // If area is negative (winding reversed) or too small, polygon collapsed
+            // Use absolute minimum area threshold, not relative to original
+            if (new_area < 1.0) { // Less than 1 sq meter is considered collapsed
                 return datapod::Polygon{};
             }
         }
@@ -201,10 +201,10 @@ namespace temp {
 
         // Check for collapsed polygon
         if (distance < 0) {
-            double orig_area = polygon.area();
             double new_area = result.area();
 
-            if (new_area < 1e-10 || (orig_area > 0 && new_area < orig_area * 0.01)) {
+            // If area is negative (winding reversed) or too small, polygon collapsed
+            if (new_area < 1.0) { // Less than 1 sq meter is considered collapsed
                 return datapod::Polygon{};
             }
         }
