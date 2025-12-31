@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.3] - 2025-12-31
+
+### Build
+
+- Standardize build system configuration
+
 ## [0.0.2] - 2025-12-31
 
 ### <!-- 0 -->⛰️  Features
