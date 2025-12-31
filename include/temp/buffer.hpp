@@ -10,6 +10,30 @@
 namespace temp {
 
     /**
+     * @brief Calculate the signed area of a polygon (for winding order detection)
+     * Positive = CCW, Negative = CW
+     */
+    inline double signed_polygon_area(const datapod::Polygon &polygon) {
+        if (polygon.vertices.size() < 3) {
+            return 0.0;
+        }
+        double area = 0.0;
+        const auto &verts = polygon.vertices;
+        std::size_t n = verts.size();
+        for (std::size_t i = 0; i < n; ++i) {
+            std::size_t j = (i + 1) % n;
+            area += verts[i].x * verts[j].y;
+            area -= verts[j].x * verts[i].y;
+        }
+        return area * 0.5;
+    }
+
+    /**
+     * @brief Check if polygon is counter-clockwise
+     */
+    inline bool is_polygon_ccw(const datapod::Polygon &polygon) { return signed_polygon_area(polygon) > 0.0; }
+
+    /**
      * @brief Normalize a 2D vector
      */
     inline void normalize_2d(double &x, double &y) {
@@ -27,10 +51,11 @@ namespace temp {
      * @param curr Current vertex
      * @param next Next vertex
      * @param distance Offset distance (positive = outward, negative = inward)
+     * @param ccw Whether the polygon is counter-clockwise (affects normal direction)
      * @return Offset point
      */
     inline datapod::Point compute_miter_offset(const datapod::Point &prev, const datapod::Point &curr,
-                                               const datapod::Point &next, double distance) {
+                                               const datapod::Point &next, double distance, bool ccw = true) {
         // Edge vectors
         double e1x = curr.x - prev.x;
         double e1y = curr.y - prev.y;
@@ -41,11 +66,22 @@ namespace temp {
         normalize_2d(e1x, e1y);
         normalize_2d(e2x, e2y);
 
-        // Outward normals (perpendicular, pointing left of edge direction)
-        double n1x = -e1y;
-        double n1y = e1x;
-        double n2x = -e2y;
-        double n2y = e2x;
+        // Outward normals: for CCW polygon, outward is to the RIGHT of edge direction (dy, -dx)
+        // For CW polygon, outward is to the LEFT of edge direction (-dy, dx)
+        double n1x, n1y, n2x, n2y;
+        if (ccw) {
+            // CCW: outward normal is (dy, -dx) - right of edge direction
+            n1x = e1y;
+            n1y = -e1x;
+            n2x = e2y;
+            n2y = -e2x;
+        } else {
+            // CW: outward normal is (-dy, dx) - left of edge direction
+            n1x = -e1y;
+            n1y = e1x;
+            n2x = -e2y;
+            n2y = e2x;
+        }
 
         // Bisector direction
         double bx = n1x + n2x;
@@ -100,13 +136,31 @@ namespace temp {
         const auto &verts = polygon.vertices;
         std::size_t n = verts.size();
 
-        result.vertices.reserve(n);
+        // Check if polygon is closed (first == last vertex)
+        bool is_closed = false;
+        if (n > 1) {
+            double dx = verts.front().x - verts.back().x;
+            double dy = verts.front().y - verts.back().y;
+            is_closed = (dx * dx + dy * dy) < 1e-10;
+        }
 
-        for (std::size_t i = 0; i < n; ++i) {
-            std::size_t prev_idx = (i + n - 1) % n;
-            std::size_t next_idx = (i + 1) % n;
+        // If closed, don't process the last vertex (it's a duplicate of the first)
+        std::size_t num_unique = is_closed ? n - 1 : n;
 
-            datapod::Point offset_pt = compute_miter_offset(verts[prev_idx], verts[i], verts[next_idx], distance);
+        if (num_unique < 3) {
+            return result;
+        }
+
+        // Detect winding order
+        bool ccw = is_polygon_ccw(polygon);
+
+        result.vertices.reserve(num_unique);
+
+        for (std::size_t i = 0; i < num_unique; ++i) {
+            std::size_t prev_idx = (i + num_unique - 1) % num_unique;
+            std::size_t next_idx = (i + 1) % num_unique;
+
+            datapod::Point offset_pt = compute_miter_offset(verts[prev_idx], verts[i], verts[next_idx], distance, ccw);
             result.vertices.push_back(offset_pt);
         }
 
@@ -146,9 +200,27 @@ namespace temp {
         const auto &verts = polygon.vertices;
         std::size_t n = verts.size();
 
-        for (std::size_t i = 0; i < n; ++i) {
-            std::size_t prev_idx = (i + n - 1) % n;
-            std::size_t next_idx = (i + 1) % n;
+        // Check if polygon is closed (first == last vertex)
+        bool is_closed = false;
+        if (n > 1) {
+            double dx = verts.front().x - verts.back().x;
+            double dy = verts.front().y - verts.back().y;
+            is_closed = (dx * dx + dy * dy) < 1e-10;
+        }
+
+        // If closed, don't process the last vertex (it's a duplicate of the first)
+        std::size_t num_unique = is_closed ? n - 1 : n;
+
+        if (num_unique < 3) {
+            return result;
+        }
+
+        // Detect winding order
+        bool ccw = is_polygon_ccw(polygon);
+
+        for (std::size_t i = 0; i < num_unique; ++i) {
+            std::size_t prev_idx = (i + num_unique - 1) % num_unique;
+            std::size_t next_idx = (i + 1) % num_unique;
 
             const auto &prev = verts[prev_idx];
             const auto &curr = verts[i];
@@ -163,15 +235,23 @@ namespace temp {
             normalize_2d(e1x, e1y);
             normalize_2d(e2x, e2y);
 
-            // Outward normals
-            double n1x = -e1y;
-            double n1y = e1x;
-            double n2x = -e2y;
-            double n2y = e2x;
+            // Outward normals: for CCW polygon, outward is (dy, -dx)
+            double n1x, n1y, n2x, n2y;
+            if (ccw) {
+                n1x = e1y;
+                n1y = -e1x;
+                n2x = e2y;
+                n2y = -e2x;
+            } else {
+                n1x = -e1y;
+                n1y = e1x;
+                n2x = -e2y;
+                n2y = e2x;
+            }
 
             // Check if this is a convex or concave corner
             double cross = e1x * e2y - e1y * e2x;
-            bool is_convex = (distance > 0) ? (cross < 0) : (cross > 0);
+            bool is_convex = ccw ? (distance > 0 ? cross < 0 : cross > 0) : (distance > 0 ? cross > 0 : cross < 0);
 
             if (is_convex && std::abs(distance) > 1e-10) {
                 // Add arc at convex corner
@@ -194,7 +274,7 @@ namespace temp {
                 }
             } else {
                 // Use miter join for concave corners
-                datapod::Point offset_pt = compute_miter_offset(prev, curr, next, distance);
+                datapod::Point offset_pt = compute_miter_offset(prev, curr, next, distance, ccw);
                 result.vertices.push_back(offset_pt);
             }
         }
