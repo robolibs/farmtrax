@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.0.2] - 2025-12-31
+
+### <!-- 0 -->⛰️  Features
+
+- Simplify field boundary definition
+- Add geotagged field and swath visualization
+- Migrate from Boost to datapod/graphix libraries
+- Convert library to header-only
+
+### <!-- 1 -->🐛 Bug Fixes
+
+- Correct buffer_polygon winding order and closed polygon handling
+- Restore original WGS84 field coordinates in main.cpp example
+- Use absolute area threshold in buffer_polygon to prevent false collapse detection
+- Use pre-converted ENU coordinates in main.cpp example
+- Remove unused zoneout dependency
+
+### Build
+
+- Refactor build system for clarity and consistency
+
 ## [1.1.1] - 2025-12-15
 
 ### <!-- 7 -->⚙️ Miscellaneous Tasks
