@@ -63,7 +63,7 @@ namespace farmtrax {
             auto geo_border = rerun::components::GeoLineString::from_lat_lon(border_wgs);
             rec->log_static("/field/border", rerun::archetypes::GeoLineStrings(geo_border)
                                                  .with_colors({{rerun::Color(120, 70, 70)}})
-                                                 .with_radii({{2.0f}}));
+                                                 .with_radii({{0.5f}}));
 
             for (size_t i = 0; i < field.get_parts().size(); ++i) {
                 // Headlands
@@ -89,7 +89,7 @@ namespace farmtrax {
                     rec->log_static("/field/part" + std::to_string(i) + "/headland" + std::to_string(j),
                                     rerun::archetypes::GeoLineStrings(geo_headland)
                                         .with_colors({{rerun::Color(70, 120, 70)}})
-                                        .with_radii({{2.0f}}));
+                                        .with_radii({{0.5f}}));
                 }
 
                 // Swaths
@@ -109,7 +109,7 @@ namespace farmtrax {
                     rec->log_static("/field/part" + std::to_string(i) + "/swath" + std::to_string(j),
                                     rerun::archetypes::GeoLineStrings(geo_swath)
                                         .with_colors({{rerun::Color(70, 70, 120)}})
-                                        .with_radii({{2.0f}}));
+                                        .with_radii({{0.5f}}));
                 }
             }
         }
