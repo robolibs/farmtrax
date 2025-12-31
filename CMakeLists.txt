@@ -4,18 +4,17 @@ cmake_minimum_required(VERSION 3.15)
 # Project configuration
 # ==================================================================================================
 set(PROJECT_NAME farmtrax)
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" PROJECT_VERSION)
-string(STRIP "${PROJECT_VERSION}" PROJECT_VERSION)
+set(PROJECT_VERSION "0.0.2")
 
 # Dependencies formats:
 #   Git:    set(LIB_DEPS "name|https://github.com/org/repo.git|tag" ...)
 #   Find:   set(LIB_DEPS "name" ...)  # Uses find_package
 #   Pkg:    set(LIB_DEPS "pkg::name" ...)  # Uses pkg-config
 set(LIB_DEPS
-    "datapod|https://github.com/robolibs/datapod.git|0.0.15"
-    "optinum|https://github.com/robolibs/optinum.git|0.0.12"
-    "graphix|https://github.com/robolibs/graphix.git|0.0.2"
-    "concord|https://github.com/robolibs/concord.git|0.0.2"
+    "datapod|https://github.com/robolibs/datapod.git|0.0.16"
+    "optinum|https://github.com/robolibs/optinum.git|0.0.13"
+    "graphix|https://github.com/robolibs/graphix.git|0.0.3"
+    "concord|https://github.com/robolibs/concord.git|0.0.4"
 )
 set(EXAMPLE_DEPS
     "pkg::rerun_sdk"
@@ -23,6 +22,34 @@ set(EXAMPLE_DEPS
 set(TEST_DEPS
     "doctest|https://github.com/doctest/doctest.git|v2.4.12"
 )
+
+# ==================================================================================================
+# Compiler selection (must be before project())
+# ==================================================================================================
+# Usage: cmake -DCOMPILER=clang .. or cmake -DCOMPILER=gcc ..
+set(COMPILER "" CACHE STRING "Compiler to use: gcc, clang, or empty for system default")
+
+if(COMPILER STREQUAL "clang")
+    find_program(CLANG_C_COMPILER clang)
+    find_program(CLANG_CXX_COMPILER clang++)
+    if(CLANG_C_COMPILER AND CLANG_CXX_COMPILER)
+        set(CMAKE_C_COMPILER ${CLANG_C_COMPILER})
+        set(CMAKE_CXX_COMPILER ${CLANG_CXX_COMPILER})
+        message(STATUS "Using Clang compiler: ${CLANG_CXX_COMPILER}")
+    else()
+        message(FATAL_ERROR "Clang compiler not found")
+    endif()
+elseif(COMPILER STREQUAL "gcc")
+    find_program(GCC_C_COMPILER gcc)
+    find_program(GCC_CXX_COMPILER g++)
+    if(GCC_C_COMPILER AND GCC_CXX_COMPILER)
+        set(CMAKE_C_COMPILER ${GCC_C_COMPILER})
+        set(CMAKE_CXX_COMPILER ${GCC_CXX_COMPILER})
+        message(STATUS "Using GCC compiler: ${GCC_CXX_COMPILER}")
+    else()
+        message(FATAL_ERROR "GCC compiler not found")
+    endif()
+endif()
 
 # ==================================================================================================
 # Project setup
@@ -35,12 +62,17 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 cmake_policy(SET CMP0074 NEW)
 cmake_policy(SET CMP0135 NEW)
 
-add_compile_options(-Wall -Wextra -Wpedantic
-    -Wno-reorder -Wno-narrowing -Wno-array-bounds
-    -Wno-unused-variable -Wno-unused-parameter
-    -Wno-stringop-overflow -Wno-unused-but-set-variable
-    -Wno-gnu-line-marker -Wno-comment
-)
+# Compiler-specific flags
+set(COMMON_FLAGS -Wall -Wextra -Wpedantic -Wno-reorder -Wno-narrowing -Wno-array-bounds
+    -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable -Wno-gnu-line-marker)
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    add_compile_options(${COMMON_FLAGS} -Wno-stringop-overflow)
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_compile_options(${COMMON_FLAGS} -Wno-unknown-warning-option)
+else()
+    add_compile_options(${COMMON_FLAGS})
+endif()
 
 # Architecture-specific SIMD flags
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|i[3-6]86")
