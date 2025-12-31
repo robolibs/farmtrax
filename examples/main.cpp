@@ -47,7 +47,7 @@ int main() {
     farmtrax::Field field(poly, world_datum, true, 100000.0);
 
     field.gen_field(4.0, 0.0, 3);
-    auto num_machines = 2;
+    size_t num_machines = 2;
 
     // Create some example obstacles (e.g., trees, buildings, water bodies)
     std::vector<datapod::Polygon> obstacles;
