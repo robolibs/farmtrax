@@ -61,9 +61,9 @@ namespace farmtrax {
 
             // Log WGS84 coordinates (Map view)
             auto geo_border = rerun::components::GeoLineString::from_lat_lon(border_wgs);
-            rec->log_static("/map/border", rerun::archetypes::GeoLineStrings(geo_border)
-                                               .with_colors({{rerun::Color(120, 70, 70)}})
-                                               .with_radii({{2.0f}}));
+            rec->log_static("/field/border", rerun::archetypes::GeoLineStrings(geo_border)
+                                                 .with_colors({{rerun::Color(120, 70, 70)}})
+                                                 .with_radii({{2.0f}}));
 
             for (size_t i = 0; i < field.get_parts().size(); ++i) {
                 // Headlands
@@ -86,7 +86,7 @@ namespace farmtrax {
                                         .with_radii({{0.2f}}));
 
                     auto geo_headland = rerun::components::GeoLineString::from_lat_lon(wgs_pts);
-                    rec->log_static("/map/part" + std::to_string(i) + "/headland" + std::to_string(j),
+                    rec->log_static("/field/part" + std::to_string(i) + "/headland" + std::to_string(j),
                                     rerun::archetypes::GeoLineStrings(geo_headland)
                                         .with_colors({{rerun::Color(70, 120, 70)}})
                                         .with_radii({{2.0f}}));
@@ -106,7 +106,7 @@ namespace farmtrax {
                                         .with_radii({{0.2f}}));
 
                     auto geo_swath = rerun::components::GeoLineString::from_lat_lon(wgs_pts);
-                    rec->log_static("/map/part" + std::to_string(i) + "/swath" + std::to_string(j),
+                    rec->log_static("/field/part" + std::to_string(i) + "/swath" + std::to_string(j),
                                     rerun::archetypes::GeoLineStrings(geo_swath)
                                         .with_colors({{rerun::Color(70, 70, 120)}})
                                         .with_radii({{2.0f}}));
