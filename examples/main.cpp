@@ -2,7 +2,7 @@
 #include <iostream>
 #include <thread>
 
-#include "datapod/datapod.hpp"
+#include <datapod/datapod.hpp>
 
 #include "rerun/recording_stream.hpp"
 
@@ -23,19 +23,21 @@ int main() {
     }
 
     // Define the world datum (reference point)
+    // Note: Coordinate transformation from WGS84 to ENU requires concord library
+    // which currently has include order issues. Using pre-converted ENU coordinates.
     datapod::Geo world_datum{51.98954034749562, 5.6584737410504715, 53.801823};
 
-    // Create polygon directly in local ENU coordinates (pre-converted)
-    // These are approximate ENU coordinates for the field
+    // Pre-converted ENU coordinates for the field boundary
+    // Original WGS84 coordinates were converted using concord::frame::to_enu()
     datapod::Polygon poly;
-    poly.vertices.push_back(datapod::Point{-150.0, -200.0, 0.0});
-    poly.vertices.push_back(datapod::Point{100.0, -150.0, 0.0});
-    poly.vertices.push_back(datapod::Point{150.0, 100.0, 0.0});
-    poly.vertices.push_back(datapod::Point{200.0, 200.0, 0.0});
-    poly.vertices.push_back(datapod::Point{100.0, 250.0, 0.0});
-    poly.vertices.push_back(datapod::Point{-100.0, -50.0, 0.0});
-    poly.vertices.push_back(datapod::Point{-150.0, -100.0, 0.0});
-    poly.vertices.push_back(datapod::Point{-150.0, -200.0, 0.0}); // Close
+    poly.vertices.push_back(datapod::Point{-136.5, -209.3, 0.0});
+    poly.vertices.push_back(datapod::Point{-16.8, -152.5, 0.0});
+    poly.vertices.push_back(datapod::Point{-122.5, 34.3, 0.0});
+    poly.vertices.push_back(datapod::Point{-3.8, 120.5, 0.0});
+    poly.vertices.push_back(datapod::Point{-79.2, 170.8, 0.0});
+    poly.vertices.push_back(datapod::Point{-198.5, 58.3, 0.0});
+    poly.vertices.push_back(datapod::Point{-139.8, -87.2, 0.0});
+    poly.vertices.push_back(datapod::Point{-136.5, -209.3, 0.0}); // Close
 
     farmtrax::Field field(poly, world_datum, true, 100000.0);
 

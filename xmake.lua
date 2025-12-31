@@ -11,6 +11,9 @@ add_rules("mode.debug", "mode.release")
 -- Compiler warnings and flags (matching CMake)
 add_cxxflags("-Wno-all", "-Wno-extra", "-Wno-pedantic", "-Wno-maybe-uninitialized", "-Wno-unused-variable", "-Wno-reorder")
 
+-- Enable SSE4.1 for optinum SIMD operations
+add_cxxflags("-msse4.1")
+
 -- Add global search paths for packages in ~/.local
 local home = os.getenv("HOME")
 if home then
