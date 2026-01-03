@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.5] - 2026-01-03
+
+### <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update dependency versions in xmake.lua
+
 ## [0.0.4] - 2025-12-31
 
 ### <!-- 1 -->🐛 Bug Fixes
