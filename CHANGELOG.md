@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.6] - 2026-01-03
+
+### <!-- 1 -->🐛 Bug Fixes
+
+- Update dependency versions in CMakeLists
+
 ## [0.0.5] - 2026-01-03
 
 ### <!-- 7 -->⚙️ Miscellaneous Tasks
