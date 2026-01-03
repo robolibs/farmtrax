@@ -1,27 +1,23 @@
 #pragma once
 
 #include <algorithm>
-#include <boost/geometry.hpp>
-#include <boost/geometry/geometries/linestring.hpp>
-#include <boost/geometry/geometries/point_xy.hpp>
-#include <boost/geometry/geometries/polygon.hpp>
-#include <boost/uuid/uuid.hpp>
-#include <boost/uuid/uuid_generators.hpp>
-#include <boost/uuid/uuid_io.hpp>
 #include <cmath>
-#include <concord/concord.hpp>
 #include <cstdint>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
+#include <datapod/datapod.hpp>
+
+#include <temp/geometry.hpp>
+
 namespace farmtrax {
-    // Type definitions (same as in field.hpp)
-    using BPoint = boost::geometry::model::d2::point_xy<double>;
-    using BLineString = boost::geometry::model::linestring<BPoint>;
-    using BPolygon = boost::geometry::model::polygon<BPoint>;
 
     namespace utils {
+
+        /**
+         * @brief Convert a float value [0, 1] to a byte [0, 255]
+         */
         inline uint8_t float_to_byte(float v, float min = 0.0f, float max = 255.0f) {
             v = std::clamp(v, 0.0f, 1.0f);
             float scaled = v * 255.0f;
@@ -29,74 +25,185 @@ namespace farmtrax {
             return static_cast<uint8_t>(std::round(clamped));
         }
 
-        inline bool are_colinear(const concord::Point &p1, const concord::Point &p2, const concord::Point &p3,
+        /**
+         * @brief Calculate distance from a point to a line segment
+         *
+         * @param point The point
+         * @param line_start Start of the line segment
+         * @param line_end End of the line segment
+         * @return Distance from point to line segment
+         */
+        inline double point_to_line_distance(const datapod::Point &point, const datapod::Point &line_start,
+                                             const datapod::Point &line_end) {
+            datapod::Segment seg{line_start, line_end};
+            return seg.distance_to(point);
+        }
+
+        /**
+         * @brief Calculate angle between two vectors represented as Points (relative to origin)
+         *
+         * @param v1 First vector
+         * @param v2 Second vector
+         * @return Angle in radians
+         */
+        inline double angle_between(const datapod::Point &v1, const datapod::Point &v2) {
+            // Calculate magnitudes
+            double v1_mag = std::sqrt(v1.x * v1.x + v1.y * v1.y);
+            double v2_mag = std::sqrt(v2.x * v2.x + v2.y * v2.y);
+
+            // Prevent division by zero
+            if (v1_mag < 1e-10 || v2_mag < 1e-10) {
+                return 0.0; // One of the vectors is zero-length
+            }
+
+            // Calculate dot product and normalize
+            double dot_product = (v1.x * v2.x + v1.y * v2.y) / (v1_mag * v2_mag);
+
+            // Ensure dot product is within valid range for acos
+            dot_product = std::clamp(dot_product, -1.0, 1.0);
+
+            // Return angle in radians
+            return std::acos(dot_product);
+        }
+
+        /**
+         * @brief Check if three points are collinear
+         *
+         * @param p1 First point
+         * @param p2 Second point
+         * @param p3 Third point
+         * @param epsilon Tolerance for collinearity check
+         * @return true if points are collinear
+         */
+        inline bool are_colinear(const datapod::Point &p1, const datapod::Point &p2, const datapod::Point &p3,
                                  double epsilon = 1e-10) {
-            using BPoint = boost::geometry::model::d2::point_xy<double>;
-            BPoint a{p1.enu.x, p1.enu.y}, b{p2.enu.x, p2.enu.y}, c{p3.enu.x, p3.enu.y};
-            double area = (boost::geometry::get<0>(a) * (boost::geometry::get<1>(b) - boost::geometry::get<1>(c)) +
-                           boost::geometry::get<0>(b) * (boost::geometry::get<1>(c) - boost::geometry::get<1>(a)) +
-                           boost::geometry::get<0>(c) * (boost::geometry::get<1>(a) - boost::geometry::get<1>(b))) *
-                          0.5;
+            // Calculate signed area of triangle formed by three points
+            double area = (p1.x * (p2.y - p3.y) + p2.x * (p3.y - p1.y) + p3.x * (p1.y - p2.y)) * 0.5;
             return std::abs(area) < epsilon;
         }
 
-        inline concord::Polygon remove_colinear_points(const concord::Polygon &polygon, double epsilon = 0.01) {
-            concord::Polygon result;
-            auto const &pts = polygon.getPoints();
-            if (pts.size() < 4)
+        /**
+         * @brief Remove collinear points from a polygon
+         *
+         * @param polygon The polygon to simplify
+         * @param epsilon Tolerance for collinearity check
+         * @return Simplified polygon
+         */
+        inline datapod::Polygon remove_colinear_points(const datapod::Polygon &polygon, double epsilon = 0.01) {
+            datapod::Polygon result;
+            const auto &pts = polygon.vertices;
+
+            if (pts.size() < 4) {
                 return polygon;
-            size_t n = pts.size() - 1;
-            for (size_t i = 0; i < n; ++i) {
-                auto const &prev = pts[(i + n - 1) % n];
-                auto const &curr = pts[i];
-                auto const &next = pts[(i + 1) % n];
-                if (!are_colinear(prev, curr, next, epsilon))
-                    result.addPoint(curr);
             }
-            result.addPoint(pts.front());
+
+            // Check if polygon is closed (first == last)
+            bool is_closed = false;
+            if (pts.size() > 1) {
+                double dx = pts.front().x - pts.back().x;
+                double dy = pts.front().y - pts.back().y;
+                is_closed = (dx * dx + dy * dy) < 1e-10;
+            }
+
+            std::size_t n = is_closed ? pts.size() - 1 : pts.size();
+
+            for (std::size_t i = 0; i < n; ++i) {
+                const auto &prev = pts[(i + n - 1) % n];
+                const auto &curr = pts[i];
+                const auto &next = pts[(i + 1) % n];
+
+                if (!are_colinear(prev, curr, next, epsilon)) {
+                    result.vertices.push_back(curr);
+                }
+            }
+
+            // Close the polygon if it was closed
+            if (is_closed && !result.vertices.empty()) {
+                result.vertices.push_back(result.vertices.front());
+            }
+
             return result;
         }
 
-        // Conversion functions between concord and boost geometry types
-        inline BPoint to_boost(const concord::Point &in) { return BPoint{in.enu.x, in.enu.y}; }
-
-        inline concord::Point from_boost(const BPoint &in, const concord::Datum &datum = concord::Datum{}) {
-            concord::ENU pt{in.x(), in.y(), 0.0};
-            return concord::Point{pt, datum};
+        /**
+         * @brief Check if two points are approximately equal
+         *
+         * @param p1 First point
+         * @param p2 Second point
+         * @param epsilon Tolerance
+         * @return true if points are approximately equal
+         */
+        inline bool points_equal(const datapod::Point &p1, const datapod::Point &p2, double epsilon = 1e-10) {
+            double dx = p1.x - p2.x;
+            double dy = p1.y - p2.y;
+            double dz = p1.z - p2.z;
+            return (dx * dx + dy * dy + dz * dz) < epsilon * epsilon;
         }
 
-        inline BLineString to_boost(const concord::Line &L) {
-            BLineString out;
-            out.emplace_back(to_boost(L.getStart()));
-            out.emplace_back(to_boost(L.getEnd()));
-            return out;
+        /**
+         * @brief Ensure polygon is closed (first point == last point)
+         *
+         * @param polygon The polygon to close
+         * @return Closed polygon
+         */
+        inline datapod::Polygon close_polygon(const datapod::Polygon &polygon) {
+            if (polygon.vertices.empty()) {
+                return polygon;
+            }
+
+            datapod::Polygon result = polygon;
+
+            if (!points_equal(result.vertices.front(), result.vertices.back())) {
+                result.vertices.push_back(result.vertices.front());
+            }
+
+            return result;
         }
 
-        inline concord::Line from_boost(const BLineString &L, const concord::Datum &datum = concord::Datum{}) {
-            concord::Line out;
-            out.setStart(from_boost(L.front(), datum));
-            out.setEnd(from_boost(L.back(), datum));
-            return out;
+        /**
+         * @brief Correct polygon winding order (ensure CCW for exterior rings)
+         *
+         * @param polygon The polygon to correct
+         * @return Corrected polygon
+         */
+        inline datapod::Polygon correct_polygon(const datapod::Polygon &polygon) {
+            return temp::correct_polygon(polygon);
         }
 
-        inline BPolygon to_boost(const concord::Polygon &poly) {
-            BPolygon out;
-            for (auto const &pt : poly.getPoints())
-                out.outer().emplace_back(to_boost(pt));
-            if (!boost::geometry::equals(out.outer().front(), out.outer().back()))
-                out.outer().push_back(out.outer().front());
-            boost::geometry::correct(out);
-            return out;
+        /**
+         * @brief Calculate the heading angle from one point to another
+         *
+         * @param from Start point
+         * @param to End point
+         * @return Heading angle in radians (0 = east, pi/2 = north)
+         */
+        inline double heading_between(const datapod::Point &from, const datapod::Point &to) {
+            return std::atan2(to.y - from.y, to.x - from.x);
         }
 
-        inline concord::Polygon from_boost(const BPolygon &poly, const concord::Datum &datum = concord::Datum{}) {
-            concord::Polygon out;
-            for (auto const &pt : poly.outer())
-                out.addPoint(from_boost(pt, datum));
-            if (!out.getPoints().empty())
-                out.addPoint(from_boost(poly.outer().front(), datum));
-            return out;
+        /**
+         * @brief Normalize an angle to [-pi, pi]
+         *
+         * @param angle Angle in radians
+         * @return Normalized angle
+         */
+        inline double normalize_angle(double angle) {
+            while (angle > M_PI)
+                angle -= 2.0 * M_PI;
+            while (angle < -M_PI)
+                angle += 2.0 * M_PI;
+            return angle;
         }
+
+        /**
+         * @brief Calculate the shortest angular difference between two angles
+         *
+         * @param from Start angle in radians
+         * @param to End angle in radians
+         * @return Angular difference in radians [-pi, pi]
+         */
+        inline double angle_difference(double from, double to) { return normalize_angle(to - from); }
+
     } // namespace utils
 
 } // namespace farmtrax

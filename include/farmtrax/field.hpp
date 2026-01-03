@@ -4,106 +4,169 @@
 #include <cmath>
 #include <cstdint>
 #include <iostream>
+#include <limits>
 #include <numeric>
 #include <random>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
-#include <boost/geometry.hpp>
-#include <boost/geometry/algorithms/area.hpp>
-#include <boost/geometry/algorithms/centroid.hpp>
-#include <boost/geometry/algorithms/distance.hpp>
-#include <boost/geometry/algorithms/intersection.hpp>
-#include <boost/geometry/geometries/linestring.hpp>
-#include <boost/geometry/geometries/multi_polygon.hpp>
-#include <boost/geometry/geometries/point_xy.hpp>
-#include <boost/geometry/geometries/polygon.hpp>
-#include <boost/geometry/index/rtree.hpp>
-#include <boost/geometry/strategies/buffer.hpp>
-#include <boost/uuid/uuid.hpp>
-#include <boost/uuid/uuid_generators.hpp>
-#include <boost/uuid/uuid_io.hpp>
+#include <datapod/datapod.hpp>
 
-#include <concord/concord.hpp>
-#include <entropy/noisegen.hpp>
+#include <temp/geometry.hpp>
 
-#include "farmtrax/party.hpp"
 #include "farmtrax/utils/utils.hpp"
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 namespace farmtrax {
-    using BPoint = boost::geometry::model::d2::point_xy<double>;
-    using BLineString = boost::geometry::model::linestring<BPoint>;
-    using BPolygon = boost::geometry::model::polygon<BPoint>;
-    using BBox = boost::geometry::model::box<BPoint>;
 
-    // R-tree value types for different geometry types
-    using SwathRTreeValue = std::pair<BBox, std::size_t>;   // Bounding box + swath index
-    using RingRTreeValue = std::pair<BBox, std::size_t>;    // Bounding box + ring index
-    using PointRTreeValue = std::pair<BPoint, std::size_t>; // Point + index
-
-    // R-tree types
-    using SwathRTree = boost::geometry::index::rtree<SwathRTreeValue, boost::geometry::index::quadratic<16>>;
-    using RingRTree = boost::geometry::index::rtree<RingRTreeValue, boost::geometry::index::quadratic<16>>;
-    using PointRTree = boost::geometry::index::rtree<PointRTreeValue, boost::geometry::index::quadratic<16>>;
-
+    /**
+     * @brief Ring represents a closed polygon boundary (headland or field boundary)
+     */
     struct Ring {
-        concord::Polygon polygon;
+        datapod::Polygon polygon;
         std::string uuid;
         bool finished = false;
-        BPolygon b_polygon;
-        BBox bounding_box; // Add bounding box for R-tree
+        datapod::AABB bounding_box;
     };
 
-    inline Ring create_ring(const concord::Polygon &poly, std::string uuid = "") {
-        if (uuid.empty())
-            uuid = boost::uuids::to_string(boost::uuids::random_generator()());
-        Ring ring = {poly, uuid};
-        // Convert to boost polygon and compute bounding box
-        ring.b_polygon = boost::geometry::model::polygon<BPoint>();
-        for (auto const &pt : poly.getPoints()) {
-            ring.b_polygon.outer().emplace_back(pt.enu.x, pt.enu.y);
+    /**
+     * @brief Create a Ring from a polygon with optional UUID
+     *
+     * @param poly The polygon defining the ring boundary
+     * @param uuid Optional UUID (generated if empty)
+     * @return Ring structure with computed bounding box
+     */
+    inline Ring create_ring(const datapod::Polygon &poly, std::string uuid = "") {
+        if (uuid.empty()) {
+            uuid = temp::generate_uuid();
         }
-        if (!boost::geometry::equals(ring.b_polygon.outer().front(), ring.b_polygon.outer().back()))
-            ring.b_polygon.outer().push_back(ring.b_polygon.outer().front());
-        boost::geometry::correct(ring.b_polygon);
-        ring.bounding_box = boost::geometry::return_envelope<BBox>(ring.b_polygon);
+
+        Ring ring;
+        ring.polygon = poly;
+        ring.uuid = uuid;
+        ring.finished = false;
+
+        // Ensure polygon is closed and correct
+        if (!ring.polygon.vertices.empty()) {
+            // Close polygon if needed
+            if (ring.polygon.vertices.size() > 1) {
+                const auto &first = ring.polygon.vertices.front();
+                const auto &last = ring.polygon.vertices.back();
+                double dx = first.x - last.x;
+                double dy = first.y - last.y;
+                if (dx * dx + dy * dy > 1e-10) {
+                    ring.polygon.vertices.push_back(first);
+                }
+            }
+            ring.polygon = temp::correct_polygon(ring.polygon);
+        }
+
+        ring.bounding_box = ring.polygon.get_aabb();
         return ring;
     }
 
-    struct Swath {
-        concord::Line line;
-        std::string uuid;
-        bool finished = false;
-        BLineString b_line;
-        BBox bounding_box; // Add bounding box for R-tree
+    /**
+     * @brief Type of swath/path segment
+     */
+    enum class SwathType {
+        Swath,      ///< Regular working swath
+        Connection, ///< Connection between swaths
+        Around,     ///< Around obstacle
+        Headland,   ///< Headland pass
     };
 
-    inline Swath create_swath(const concord::Point &start, const concord::Point &end, std::string uuid = "") {
-        concord::Line L;
-        L.setStart(start);
-        L.setEnd(end);
-        if (uuid.empty())
-            uuid = boost::uuids::to_string(boost::uuids::random_generator()());
+    /**
+     * @brief Swath represents a working path segment
+     */
+    struct Swath {
+        datapod::Segment line;
+        std::string uuid;
+        SwathType type = SwathType::Swath;
+        bool finished = false;
+        datapod::AABB bounding_box;
 
-        Swath swath = {L, uuid};
-        // Convert to boost linestring and compute bounding box
-        swath.b_line.emplace_back(start.enu.x, start.enu.y);
-        swath.b_line.emplace_back(end.enu.x, end.enu.y);
-        swath.bounding_box = boost::geometry::return_envelope<BBox>(swath.b_line);
+        // Additional fields for testing/compatibility
+        int id = -1;
+        double width = 0.0;
+        datapod::Vector<datapod::Point> points;
+
+        /**
+         * @brief Get the head (start) point of the swath
+         */
+        datapod::Point getHead() const { return line.start; }
+
+        /**
+         * @brief Get the tail (end) point of the swath
+         */
+        datapod::Point getTail() const { return line.end; }
+
+        /**
+         * @brief Swap head and tail (reverse direction)
+         */
+        void swapDirection() {
+            std::swap(line.start, line.end);
+            // Bounding box doesn't change when swapping direction
+        }
+
+        /**
+         * @brief Create a copy with swapped direction
+         */
+        Swath withSwappedDirection() const {
+            Swath swapped = *this;
+            swapped.swapDirection();
+            return swapped;
+        }
+    };
+
+    /**
+     * @brief Create a Swath from start and end points
+     *
+     * @param start Start point of the swath
+     * @param end End point of the swath
+     * @param type Type of swath
+     * @param uuid Optional UUID (generated if empty)
+     * @return Swath structure with computed bounding box
+     */
+    inline Swath create_swath(const datapod::Point &start, const datapod::Point &end, SwathType type,
+                              std::string uuid = "") {
+        if (uuid.empty()) {
+            uuid = temp::generate_uuid();
+        }
+
+        Swath swath;
+        swath.line = datapod::Segment{start, end};
+        swath.uuid = uuid;
+        swath.type = type;
+        swath.finished = false;
+
+        // Compute bounding box
+        swath.bounding_box =
+            datapod::AABB{datapod::Point{std::min(start.x, end.x), std::min(start.y, end.y), std::min(start.z, end.z)},
+                          datapod::Point{std::max(start.x, end.x), std::max(start.y, end.y), std::max(start.z, end.z)}};
+
         return swath;
     }
 
+    /**
+     * @brief Part represents a subdivided section of the field
+     */
     struct Part {
-        Ring border;
+        Ring boundary; ///< The boundary polygon of this subdivided part
         std::vector<Swath> swaths;
         std::vector<Ring> headlands;
 
         // R-trees for spatial indexing
-        SwathRTree swath_rtree;
-        RingRTree headland_rtree;
-        PointRTree swath_endpoints_rtree; // For start/end points of swaths
+        datapod::RTree<std::size_t> swath_rtree;
+        datapod::RTree<std::size_t> headland_rtree;
+        datapod::PointRTree<std::size_t> swath_endpoints_rtree;
 
+        /**
+         * @brief Rebuild all R-trees after geometry changes
+         */
         void rebuild_rtrees() {
             // Clear existing trees
             swath_rtree.clear();
@@ -112,87 +175,87 @@ namespace farmtrax {
 
             // Rebuild swath R-tree
             for (std::size_t i = 0; i < swaths.size(); ++i) {
-                swath_rtree.insert(std::make_pair(swaths[i].bounding_box, i));
+                swath_rtree.insert(swaths[i].bounding_box, i);
 
                 // Add start and end points to point R-tree
-                BPoint start_pt(swaths[i].line.getStart().enu.x, swaths[i].line.getStart().enu.y);
-                BPoint end_pt(swaths[i].line.getEnd().enu.x, swaths[i].line.getEnd().enu.y);
-                swath_endpoints_rtree.insert(std::make_pair(start_pt, i * 2));   // Even indices for start points
-                swath_endpoints_rtree.insert(std::make_pair(end_pt, i * 2 + 1)); // Odd indices for end points
+                swath_endpoints_rtree.insert(swaths[i].line.start, i * 2);   // Even indices for start points
+                swath_endpoints_rtree.insert(swaths[i].line.end, i * 2 + 1); // Odd indices for end points
             }
 
             // Rebuild headland R-tree
             for (std::size_t i = 0; i < headlands.size(); ++i) {
-                headland_rtree.insert(std::make_pair(headlands[i].bounding_box, i));
+                headland_rtree.insert(headlands[i].bounding_box, i);
             }
         }
     };
 
-    using Grid = concord::Grid<uint8_t>;
-
+    /**
+     * @brief Field represents an agricultural field with headlands and swaths
+     *
+     * The Field class manages field geometry, headland generation, and swath planning.
+     * It supports field subdivision and spatial queries for efficient path planning.
+     */
     class Field {
-        concord::Polygon border_;
-        std::vector<Grid> grids_;
-        std::vector<Part> parts_;
-        double resolution_{};
+      public:
+        // Forward declaration of test functions
+        friend datapod::Geo get_field_datum(const Field &field);
+        friend double get_total_field_area(const Field &field);
 
       private:
-        Partitioner partitioner_;
-        concord::Datum datum_{};
-        entropy::NoiseGen noiseGen_;
+        datapod::Polygon border_;
+        std::vector<Part> parts_;
+        datapod::Geo datum_{};
         std::mt19937 rnd_;
         double overlap_threshold_{0.7};
 
       public:
-        Field(const concord::Polygon &border, double resolution, const concord::Datum &datum, bool centred = true,
-              double overlap_threshold = 0.7, double area_threshold = 0.5)
-            : resolution_(resolution), border_(border), datum_(datum), overlap_threshold_(overlap_threshold) {
-            grids_.emplace_back(border_, resolution_, datum_, centred);
-            partitioner_ = Partitioner(border_);
-            auto divisions = partitioner_.partition(area_threshold);
-            std::cout << "Split " << divisions.size() << " parts\n";
-            parts_.reserve(divisions.size());
-            for (auto const &poly : divisions) {
-                Part p;
-                p.border = create_ring(poly);
-                parts_.push_back(std::move(p));
-            }
-        }
+        /**
+         * @brief Construct a Field from a border polygon
+         *
+         * @param border The field boundary polygon
+         * @param datum Geographic reference datum
+         * @param centred Whether to center the field (unused, kept for API compatibility)
+         * @param area_threshold Area threshold for subdivision (unused without Partitioner)
+         * @param use_equal_areas Whether to use equal area partitioning (unused without Partitioner)
+         */
+        inline Field(const datapod::Polygon &border, const datapod::Geo &datum, bool centred = true,
+                     double area_threshold = 0.5, bool use_equal_areas = false)
+            : border_(border), datum_(datum) {
+            // Without concord::Partitioner, we treat the entire field as a single part
+            // Future: implement custom partitioning if needed
 
-        Grid &get_grid(std::size_t i) {
-            if (i >= grids_.size())
-                throw std::out_of_range("Grid index out of range");
-            return grids_[i];
-        }
+            (void)centred;         // Suppress unused parameter warning
+            (void)area_threshold;  // Suppress unused parameter warning
+            (void)use_equal_areas; // Suppress unused parameter warning
 
-        const Grid &get_grid(std::size_t i) const {
-            if (i >= grids_.size())
-                throw std::out_of_range("Grid index out of range");
-            return grids_[i];
+            // Create a single part from the entire border
+            Part p;
+            p.boundary = create_ring(border_);
+            parts_.push_back(std::move(p));
         }
 
         const std::vector<Part> &get_parts() const { return parts_; }
         std::vector<Part> &get_parts() { return parts_; }
+        const datapod::Polygon &get_border() const { return border_; }
 
-        void add_noise(std::size_t i = 0) {
-            Grid &g = get_grid(i);
-            noiseGen_.SetNoiseType(entropy::NoiseGen::NoiseType_OpenSimplex2);
-            noiseGen_.SetFrequency(static_cast<float>(resolution_) / 300.0f);
-            noiseGen_.SetSeed(static_cast<int>(rnd_()));
-            for (std::size_t r = 0; r < g.rows(); ++r)
-                for (std::size_t c = 0; c < g.cols(); ++c) {
-                    float n = noiseGen_.GetNoise(static_cast<float>(r), static_cast<float>(c));
-                    float val = (n + 1.0f) * 0.5f;
-                    g(r, c).second = utils::float_to_byte(val);
-                }
-        }
-
-        void gen_field(double swath_width, double angle_degrees = 0, int headland_count = 1) {
+        /**
+         * @brief Generate field geometry (headlands and swaths)
+         *
+         * @param swath_width Width of each swath
+         * @param angle_degrees Swath angle in degrees (0 = auto-optimize)
+         * @param headland_count Number of headland passes
+         */
+        inline void gen_field(double swath_width, double angle_degrees = 0, int headland_count = 1) {
             for (auto &part : parts_) {
                 part.headlands.clear();
                 part.swaths.clear();
-                part.headlands = generate_headlands(part.border.polygon, swath_width, headland_count);
-                concord::Polygon interior = headland_count > 0 ? part.headlands.back().polygon : part.border.polygon;
+                part.headlands = generate_headlands(part.boundary.polygon, swath_width, headland_count);
+
+                // Safe access to headlands - use boundary if no headlands were generated
+                datapod::Polygon interior = (headland_count > 0 && !part.headlands.empty())
+                                                ? part.headlands.back().polygon
+                                                : part.boundary.polygon;
+
                 part.swaths = generate_swaths(swath_width, angle_degrees, interior);
 
                 // Rebuild R-trees after generating new geometry
@@ -200,9 +263,16 @@ namespace farmtrax {
             }
         }
 
-        // Spatial query methods using R-tree
-        std::vector<std::size_t> find_nearby_swaths(std::size_t part_idx, const BPoint &query_point,
-                                                    double radius) const {
+        /**
+         * @brief Find swaths near a query point
+         *
+         * @param part_idx Index of the part to search
+         * @param query_point Query point
+         * @param radius Search radius
+         * @return Vector of swath indices within radius
+         */
+        inline std::vector<std::size_t> find_nearby_swaths(std::size_t part_idx, const datapod::Point &query_point,
+                                                           double radius) const {
             if (part_idx >= parts_.size())
                 return {};
 
@@ -210,18 +280,18 @@ namespace farmtrax {
             std::vector<std::size_t> result;
 
             // Create search box around query point
-            BBox search_box(BPoint(query_point.x() - radius, query_point.y() - radius),
-                            BPoint(query_point.x() + radius, query_point.y() + radius));
+            datapod::AABB search_box{
+                datapod::Point{query_point.x - radius, query_point.y - radius, query_point.z - radius},
+                datapod::Point{query_point.x + radius, query_point.y + radius, query_point.z + radius}};
 
             // Query R-tree
-            std::vector<SwathRTreeValue> candidates;
-            part.swath_rtree.query(boost::geometry::index::intersects(search_box), std::back_inserter(candidates));
+            auto candidates = part.swath_rtree.query_intersects(search_box);
 
             // Filter by actual distance
             for (const auto &candidate : candidates) {
-                std::size_t idx = candidate.second;
+                std::size_t idx = candidate.data;
                 if (idx < part.swaths.size()) {
-                    double dist = boost::geometry::distance(query_point, part.swaths[idx].b_line);
+                    double dist = part.swaths[idx].line.distance_to(query_point);
                     if (dist <= radius) {
                         result.push_back(idx);
                     }
@@ -231,25 +301,38 @@ namespace farmtrax {
             return result;
         }
 
-        std::vector<std::size_t> find_nearest_swath_endpoints(std::size_t part_idx, const BPoint &query_point,
-                                                              std::size_t k = 1) const {
+        /**
+         * @brief Find nearest swath endpoints to a query point
+         *
+         * @param part_idx Index of the part to search
+         * @param query_point Query point
+         * @param k Number of nearest neighbors to find
+         * @return Vector of endpoint indices (even = start, odd = end)
+         */
+        inline std::vector<std::size_t>
+        find_nearest_swath_endpoints(std::size_t part_idx, const datapod::Point &query_point, std::size_t k = 1) const {
             if (part_idx >= parts_.size())
                 return {};
 
             const auto &part = parts_[part_idx];
-            std::vector<PointRTreeValue> nearest;
-            part.swath_endpoints_rtree.query(boost::geometry::index::nearest(query_point, k),
-                                             std::back_inserter(nearest));
+            auto nearest = part.swath_endpoints_rtree.query_nearest(query_point, k);
 
             std::vector<std::size_t> result;
-            for (const auto &point_value : nearest) {
-                result.push_back(point_value.second);
+            for (const auto &entry : nearest) {
+                result.push_back(entry.data);
             }
             return result;
         }
 
-        // Find optimal swath traversal order using R-tree for nearest neighbor queries
-        std::vector<std::size_t> optimize_swath_order(std::size_t part_idx, const BPoint &start_point) const {
+        /**
+         * @brief Find optimal swath traversal order using nearest neighbor heuristic
+         *
+         * @param part_idx Index of the part
+         * @param start_point Starting position
+         * @return Vector of swath indices in optimal order
+         */
+        inline std::vector<std::size_t> optimize_swath_order(std::size_t part_idx,
+                                                             const datapod::Point &start_point) const {
             if (part_idx >= parts_.size())
                 return {};
 
@@ -259,25 +342,19 @@ namespace farmtrax {
 
             std::vector<std::size_t> order;
             std::vector<bool> visited(part.swaths.size(), false);
-            BPoint current_pos = start_point;
+            datapod::Point current_pos = start_point;
 
             for (std::size_t i = 0; i < part.swaths.size(); ++i) {
                 double min_dist = std::numeric_limits<double>::max();
                 std::size_t next_swath = 0;
-
-                // Use R-tree to find nearby candidates first
-                auto nearby = find_nearby_swaths(part_idx, current_pos, min_dist);
 
                 // Find closest unvisited swath
                 for (std::size_t j = 0; j < part.swaths.size(); ++j) {
                     if (visited[j])
                         continue;
 
-                    double dist_to_start =
-                        boost::geometry::distance(current_pos, BPoint(part.swaths[j].line.getStart().enu.x,
-                                                                      part.swaths[j].line.getStart().enu.y));
-                    double dist_to_end = boost::geometry::distance(
-                        current_pos, BPoint(part.swaths[j].line.getEnd().enu.x, part.swaths[j].line.getEnd().enu.y));
+                    double dist_to_start = current_pos.distance_to(part.swaths[j].line.start);
+                    double dist_to_end = current_pos.distance_to(part.swaths[j].line.end);
 
                     double min_swath_dist = std::min(dist_to_start, dist_to_end);
                     if (min_swath_dist < min_dist) {
@@ -290,69 +367,98 @@ namespace farmtrax {
                 order.push_back(next_swath);
 
                 // Update current position to end of chosen swath
-                current_pos =
-                    BPoint(part.swaths[next_swath].line.getEnd().enu.x, part.swaths[next_swath].line.getEnd().enu.y);
+                current_pos = part.swaths[next_swath].line.end;
             }
 
             return order;
         }
 
       private:
-        std::vector<Ring> generate_headlands(const concord::Polygon &polygon, double shrink_dist, int count) const {
-            if (shrink_dist <= 0 || count <= 0)
-                return {};
+        /**
+         * @brief Generate headland rings by shrinking the polygon
+         *
+         * @param polygon The polygon to generate headlands from
+         * @param shrink_dist Distance to shrink for each headland
+         * @param count Number of headland rings to generate
+         * @return Vector of headland rings
+         */
+        inline std::vector<Ring> generate_headlands(const datapod::Polygon &polygon, double shrink_dist,
+                                                    int count) const {
+            // Quick input validation
+            if (count <= 0)
+                return {}; // No headlands requested
+
             if (shrink_dist < 0)
                 throw std::invalid_argument("negative shrink");
 
+            // Ensure shrink distance is positive
+            double actual_shrink_dist = std::max(0.1, shrink_dist);
+
+            // Initialize result vector
             std::vector<Ring> H;
-            BPolygon base = utils::to_boost(polygon);
 
+            // Ensure the polygon has points
+            if (polygon.vertices.size() < 3) {
+                std::cerr << "Warning: Invalid polygon for headland generation" << std::endl;
+                return H;
+            }
+
+            // Correct the polygon winding order
+            datapod::Polygon base = temp::correct_polygon(polygon);
+
+            // Generate each headland as a shrunken version of the previous one
             for (int i = 0; i < count; ++i) {
-                BPolygon current = (i == 0 ? base : utils::to_boost(H.back().polygon));
-                boost::geometry::model::multi_polygon<BPolygon> buf;
-                boost::geometry::strategy::buffer::distance_symmetric<double> dist(-shrink_dist);
-                boost::geometry::strategy::buffer::side_straight side;
-                boost::geometry::strategy::buffer::join_miter join;
-                boost::geometry::strategy::buffer::end_flat end;
-                boost::geometry::strategy::buffer::point_square point;
+                // Get the current polygon to shrink (either the base field or the last headland)
+                datapod::Polygon current = (i == 0) ? base : H.back().polygon;
 
-                try {
-                    boost::geometry::buffer(current, buf, dist, side, join, end, point);
-                } catch (const std::exception &e) {
-                    std::cerr << "Buffer operation failed: " << e.what() << std::endl;
-                    break;
-                }
+                // Shrink the polygon using temp::shrink_polygon
+                datapod::Polygon shrunk = temp::shrink_polygon(current, actual_shrink_dist);
 
-                if (buf.empty()) {
+                // Check if buffer operation produced valid results
+                if (shrunk.vertices.size() < 3) {
                     std::cerr << "Warning: empty buffer result at headland " << i << std::endl;
                     break;
                 }
 
-                const BPolygon *best = &buf.front();
-                double maxA = boost::geometry::area(*best);
-                for (auto const &cand : buf) {
-                    double a = boost::geometry::area(cand);
-                    if (a > maxA) {
-                        maxA = a;
-                        best = &cand;
-                    }
-                }
-
-                if (maxA <= 0) {
-                    std::cerr << "Warning: zero area polygon at headland " << i << std::endl;
+                // Check if area is too small
+                double shrunk_area = shrunk.area();
+                if (shrunk_area < 1e-6) {
+                    std::cerr << "Warning: headland " << i << " has negligible area" << std::endl;
                     break;
                 }
 
-                concord::Polygon tmp = utils::from_boost(*best, datum_);
-                concord::Polygon simp = utils::remove_colinear_points(tmp, 1e-4);
-                simp.addPoint(simp.getPoints().front());
+                // Clean up the polygon by removing colinear points
+                datapod::Polygon simp = utils::remove_colinear_points(shrunk, 1e-4);
 
+                // Ensure polygon is closed
+                if (!simp.vertices.empty()) {
+                    const auto &first = simp.vertices.front();
+                    const auto &last = simp.vertices.back();
+                    double dx = first.x - last.x;
+                    double dy = first.y - last.y;
+                    if (dx * dx + dy * dy > 1e-10) {
+                        simp.vertices.push_back(first);
+                    }
+                }
+
+                // Create a ring from the polygon and add to results
                 H.push_back(create_ring(std::move(simp)));
             }
+
             return H;
         }
 
-        std::vector<Swath> generate_swaths(double swath_width, double angle_deg, const concord::Polygon &border) const {
+        /**
+         * @brief Generate swaths within a polygon boundary
+         *
+         * @param swath_width Width of each swath
+         * @param angle_deg Swath angle in degrees (0 = auto-optimize)
+         * @param border The polygon boundary to fill with swaths
+         * @return Vector of swaths
+         */
+        inline std::vector<Swath> generate_swaths(double swath_width, double angle_deg,
+                                                  const datapod::Polygon &border) const {
+            // Auto-optimize angle if 0
             if (angle_deg == 0.0) {
                 std::vector<Swath> best_out;
                 std::size_t best_count = std::numeric_limits<std::size_t>::max();
@@ -367,34 +473,55 @@ namespace farmtrax {
             }
 
             std::vector<Swath> out;
-            BPolygon bounds = utils::to_boost(border);
+
+            // Validate polygon
+            if (!temp::is_valid_polygon(border)) {
+                datapod::Polygon corrected = temp::correct_polygon(border);
+                if (!temp::is_valid_polygon(corrected)) {
+                    std::cout << "Error: Unable to create valid polygon for swath generation" << std::endl;
+                    return out;
+                }
+                // Use corrected polygon
+                return generate_swaths(swath_width, angle_deg, corrected);
+            }
+
             double rad = angle_deg * M_PI / 180.0;
-            BPoint centroid;
-            boost::geometry::centroid(bounds, centroid);
-            double cx = centroid.x();
-            double cy = centroid.y();
+
+            // Calculate centroid
+            datapod::Point centroid_pt = temp::centroid(border);
+            double cx = centroid_pt.x;
+            double cy = centroid_pt.y;
+
             double cosA = std::cos(rad);
             double sinA = std::sin(rad);
-            auto bbox = boost::geometry::return_envelope<boost::geometry::model::box<BPoint>>(bounds);
-            double width = bbox.max_corner().x() - bbox.min_corner().x();
-            double height = bbox.max_corner().y() - bbox.min_corner().y();
-            double ext = std::max(width, height) * 2.0;
 
-            for (double offs = -ext; offs <= ext; offs += swath_width) {
-                concord::ENU e1{cx + offs * sinA - ext * cosA, cy - offs * cosA - ext * sinA, 0};
-                concord::ENU e2{cx + offs * sinA + ext * cosA, cy - offs * cosA + ext * sinA, 0};
-                BLineString ray;
-                ray.emplace_back(e1.x, e1.y);
-                ray.emplace_back(e2.x, e2.y);
-                std::vector<BLineString> clips;
-                boost::geometry::intersection(ray, bounds, clips);
+            // Get bounding box
+            datapod::AABB bbox = border.get_aabb();
+            double width = bbox.max_point.x - bbox.min_point.x;
+            double height = bbox.max_point.y - bbox.min_point.y;
 
-                for (auto const &seg : clips) {
-                    if (boost::geometry::length(seg) < swath_width * 0.1)
+            // Use more reasonable bounds for line generation
+            double line_ext = std::max(width, height) * 1.5;    // Extension for lines
+            double max_offset = std::max(width, height) * 0.75; // Maximum offset from center
+
+            for (double offs = -max_offset; offs <= max_offset; offs += swath_width) {
+                double x1 = cx + offs * sinA - line_ext * cosA;
+                double y1 = cy - offs * cosA - line_ext * sinA;
+                double x2 = cx + offs * sinA + line_ext * cosA;
+                double y2 = cy - offs * cosA + line_ext * sinA;
+
+                // Create a segment for clipping
+                datapod::Segment ray{datapod::Point{x1, y1, 0.0}, datapod::Point{x2, y2, 0.0}};
+
+                // Clip segment to polygon
+                std::vector<datapod::Segment> clips = temp::clip_segment_to_polygon(ray, border);
+
+                for (const auto &seg : clips) {
+                    double seg_length = seg.length();
+                    if (seg_length < swath_width * 0.1)
                         continue;
-                    concord::Point a{concord::ENU{seg.front().x(), seg.front().y(), 0}, datum_};
-                    concord::Point b{concord::ENU{seg.back().x(), seg.back().y(), 0}, datum_};
-                    out.push_back(create_swath(a, b));
+
+                    out.push_back(create_swath(seg.start, seg.end, SwathType::Swath));
                 }
             }
 

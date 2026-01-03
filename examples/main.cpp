@@ -1,16 +1,18 @@
+#include <iomanip>
 #include <iostream>
 #include <thread>
 
-#include "concord/concord.hpp"
-#include "geoson/geoson.hpp"
-#include "geotiv/geotiv.hpp"
+#include <concord/concord.hpp>
+#include <datapod/datapod.hpp>
 
 #include "rerun/recording_stream.hpp"
 
+#include "farmtrax/avoid.hpp"
 #include "farmtrax/divy.hpp"
 #include "farmtrax/field.hpp"
 #include "farmtrax/graph.hpp"
 #include "rerun.hpp"
+#include "thread"
 
 #include "farmtrax/utils/visualize.hpp"
 
@@ -21,91 +23,130 @@ int main() {
         return 1;
     }
 
-    concord::Datum datum{51.98954034749562, 5.6584737410504715, 53.80182312011719};
+    // WGS84 coordinates for the field boundary
+    std::vector<concord::earth::WGS> coordinates;
+    coordinates.push_back(concord::earth::WGS(51.98765392402663, 5.660072928621929, 0.0));
+    coordinates.push_back(concord::earth::WGS(51.98816428304869, 5.661754957062072, 0.0));
+    coordinates.push_back(concord::earth::WGS(51.989850316694316, 5.660416700858434, 0.0));
+    coordinates.push_back(concord::earth::WGS(51.990417354104295, 5.662166255987472, 0.0));
+    coordinates.push_back(concord::earth::WGS(51.991078888673854, 5.660969191951295, 0.0));
+    coordinates.push_back(concord::earth::WGS(51.989479848375254, 5.656874619070777, 0.0));
+    coordinates.push_back(concord::earth::WGS(51.988156722216644, 5.657715633290422, 0.0));
+    coordinates.push_back(concord::earth::WGS(51.98765392402663, 5.660072928621929, 0.0)); // Close
 
-    concord::Polygon poly;
-    try {
-        auto fc = geoson::ReadFeatureCollection("misc/field4.geojson");
-        for (auto &f : fc.features) {
-            if (std::get_if<concord::Polygon>(&f.geometry)) {
-                poly = std::get<concord::Polygon>(f.geometry);
-                break;
-            }
-        }
-    } catch (std::exception &e) {
-        std::cerr << "Failed to parse geojson: " << e.what() << "\n";
-        return 1;
+    // Define the world datum (reference point for ENU conversion)
+    datapod::Geo world_datum{51.98954034749562, 5.6584737410504715, 53.801823};
+
+    // Convert WGS84 to ENU coordinates
+    datapod::Polygon poly;
+    for (const auto &wgs_coord : coordinates) {
+        auto enu = concord::frame::to_enu(world_datum, wgs_coord);
+        poly.vertices.push_back(datapod::Point{enu.east(), enu.north(), enu.up()});
     }
 
-    for (auto &p : poly.getPoints()) {
-        std::cout << "x: " << p.enu.x << ", y: " << p.enu.y << ", z: " << p.enu.z << "\n";
-    }
-
-    farmtrax::Field field(poly, 0.1, datum, true, 0.5);
-    field.add_noise();
-
-    // geotiv::Layer layer;
-    // layer.grid = field.get_grid(0);
-    // layer.samplesPerPixel = 1;
-    // layer.planarConfig = 1;
-    // geotiv::RasterCollection rc;
-    // rc.crs = concord::CRS::WGS;
-    // rc.datum = concord::Datum();
-    // rc.heading = concord::Euler{0.0, 0.0, 0.0};
-    // rc.resolution = 0.1;
-    // rc.layers.push_back(layer);
-    //
-    // std::filesystem::path outPath = "output.tif";
-    // geotiv::WriteRasterCollection(rc, outPath);
+    farmtrax::Field field(poly, world_datum, true, 100000.0);
 
     field.gen_field(4.0, 0.0, 3);
-    auto num_machines = 2;
+    size_t num_machines = 2;
+
+    // Create some example obstacles (e.g., trees, buildings, water bodies)
+    std::vector<datapod::Polygon> obstacles;
+
+    // Calculate the actual center of the field based on its bounds
+    double min_x = std::numeric_limits<double>::max();
+    double max_x = std::numeric_limits<double>::lowest();
+    double min_y = std::numeric_limits<double>::max();
+    double max_y = std::numeric_limits<double>::lowest();
+
+    for (const auto &point : poly.vertices) {
+        min_x = std::min(min_x, point.x);
+        max_x = std::max(max_x, point.x);
+        min_y = std::min(min_y, point.y);
+        max_y = std::max(max_y, point.y);
+    }
+
+    double center_x = (min_x + max_x) / 2.0;
+    double center_y = (min_y + max_y) / 2.0;
+
+    std::cout << "Field bounds: x[" << min_x << ", " << max_x << "], y[" << min_y << ", " << max_y << "]\n";
+    std::cout << "Field center: (" << center_x << ", " << center_y << ")\n";
+
+    // Create a square obstacle at the center of the field
+    datapod::Polygon obstacle1;
+    double obstacle_size = 25.0; // 25 meter square obstacle
+
+    obstacle1.vertices.push_back(datapod::Point{center_x - obstacle_size, center_y - obstacle_size, 0});
+    obstacle1.vertices.push_back(datapod::Point{center_x + obstacle_size, center_y - obstacle_size, 0});
+    obstacle1.vertices.push_back(datapod::Point{center_x + obstacle_size, center_y + obstacle_size, 0});
+    obstacle1.vertices.push_back(datapod::Point{center_x - obstacle_size, center_y + obstacle_size, 0});
+    obstacle1.vertices.push_back(datapod::Point{center_x - obstacle_size, center_y - obstacle_size, 0}); // Close
+
+    // Add the obstacle to the obstacles vector
+    obstacles.push_back(obstacle1);
+
+    // Create obstacle avoider
+    farmtrax::ObstacleAvoider avoider(obstacles, world_datum);
+
+    std::cout << "Created " << obstacles.size() << " obstacles\n";
+
+    // Visualize obstacles
+    farmtrax::visualize::show_obstacles(obstacles, rec);
 
     auto part_cnt = field.get_parts().size();
-    std::cout << "Part count: " << part_cnt << "\n";
+    std::cout << "\n=== Field Processing with Area-Based Partitioning ===\n";
+    std::cout << "Total field parts: " << part_cnt << "\n";
 
-    farmtrax::visualize::show_field(field, rec);
-    std::this_thread::sleep_for(std::chrono::seconds(10));
+    farmtrax::visualize::show_field(field, rec, world_datum);
+    std::this_thread::sleep_for(std::chrono::seconds(2));
 
-    auto fieldPtr = std::make_shared<farmtrax::Field>(field);
-    farmtrax::Divy divy(fieldPtr, farmtrax::DivisionType::ALTERNATE, num_machines);
+    for (size_t f = 0; f < field.get_parts().size(); f++) {
+        std::cout << "\n--- Processing Field Part " << (f + 1) << " of " << part_cnt << " ---\n";
 
-    // farmtrax::visualize::show_divisions(divy, rec);
+        const auto &part = field.get_parts()[f];
 
-    std::this_thread::sleep_for(std::chrono::seconds(10));
+        // Calculate part area using datapod polygon
+        auto part_area = std::abs(part.boundary.polygon.area());
+        std::cout << "Part " << (f + 1) << ": " << std::fixed << std::setprecision(1) << part_area << " sq.m ("
+                  << (part_area / 10000.0) << " hectares), " << part.headlands.size() << " headlands, "
+                  << part.swaths.size() << " swaths\n";
 
-    num_machines = 4;
-    divy.set_machine_count(num_machines);
+        auto fieldPtr = std::make_shared<farmtrax::Part>(field.get_parts()[f]);
+        farmtrax::Divy divy(fieldPtr, farmtrax::DivisionType::ALTERNATE, num_machines);
+        divy.compute_division();
 
-    // farmtrax::visualize::show_divisions(divy, rec);
+        // farmtrax::visualize::show_divisions(divy, rec, f);
 
-    auto &res = divy.result();
-    for (std::size_t m = 0; m < num_machines; ++m) {
-        if (res.swaths_per_machine.at(m).empty()) {
-            std::cout << "Machine " << m << " has no swaths assigned\n";
-            continue;
+        std::this_thread::sleep_for(std::chrono::seconds(10));
+
+        num_machines = 4;
+        divy.set_machine_count(num_machines);
+        divy.compute_division();
+
+        // farmtrax::visualize::show_divisions(divy, rec, f);
+
+        auto &res = divy.result();
+        for (std::size_t m = 0; m < num_machines; ++m) {
+            if (res.swaths_per_machine.at(m).empty()) {
+                std::cout << "Machine " << m << " has no swaths assigned\n";
+                continue;
+            }
+
+            // Apply obstacle avoidance to the swaths
+            std::cout << "Machine " << m << " original swaths: " << res.swaths_per_machine.at(m).size() << "\n";
+
+            // Apply obstacle avoidance with 2.0 meter inflation distance
+            auto avoided_swaths = avoider.avoid(res.swaths_per_machine.at(m), 2.0f);
+
+            // Create Nety instance from obstacle-avoided swaths (now filters to only SwathType::Swath)
+            farmtrax::Nety nety(avoided_swaths);
+            nety.field_traversal(); // This reorders the swaths internally
+
+            std::cout << "Machine " << m << " has " << nety.get_swaths().size()
+                      << " swaths in Nety after filtering (only regular swaths)\n";
+
+            // Visualize the optimized swath tour using the reordered swaths with part number
+            farmtrax::visualize::show_swath_tour_for_part(nety, rec, f, m);
         }
-
-        // Convert swaths to AB lines for Nety class
-        std::vector<std::pair<concord::Point, concord::Point>> ab_pairs;
-        for (const auto &swath : res.swaths_per_machine.at(m)) {
-            ab_pairs.emplace_back(swath->line.getStart(), swath->line.getEnd());
-        }
-
-        farmtrax::Nety nety(ab_pairs);
-
-        // Use the start point of the first swath as the starting point for this machine
-        auto first_swath = res.swaths_per_machine.at(m)[0];
-        concord::Point start_point = first_swath->line.getStart();
-
-        auto path = nety.field_traversal(start_point);
-
-        std::cout << "Machine " << m << " path has " << path.size() << " vertices\n";
-
-        // Visualize the optimized swath tour with connections
-        farmtrax::visualize::show_swath_tour(nety, path, rec, m);
-
-        // … convert vertex descriptors back to ENU coords or swath indices …
     }
 
     return 0;
