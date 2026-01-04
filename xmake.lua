@@ -2,17 +2,17 @@
 -- NOTE: Due to xmake description domain limitations, PROJECT_NAME must be hardcoded
 --       and kept in sync with the NAME file. The VERSION is read dynamically.
 local PROJECT_NAME = "farmtrax"
-local PROJECT_VERSION = "0.0.6"
+local PROJECT_VERSION = "0.0.7"
 
 -- Dependencies formats:
 --   Git:    {"name", "https://github.com/org/repo.git", "tag"}
 --   Local:  {"name", "../path/to/local"}  (optional: uses git if not found)
 --   System: "pkgconfig::libname" or {system = "boost"}
 local LIB_DEPS = {
-    {"datapod", "https://github.com/robolibs/datapod.git", "0.0.22"},
-    {"optinum", "https://github.com/robolibs/optinum.git", "0.0.15"},
-    {"graphix", "https://github.com/robolibs/graphix.git", "0.0.5"},
-    {"concord", "https://github.com/robolibs/concord.git", "0.0.6"},
+    {"datapod", "https://github.com/robolibs/datapod.git", "0.0.29"},
+    {"optinum", "https://github.com/robolibs/optinum.git", "0.0.16"},
+    {"graphix", "https://github.com/robolibs/graphix.git", "0.0.6"},
+    {"concord", "https://github.com/robolibs/concord.git", "0.0.7"},
 }
 local EXAMPLE_DEPS = {
     {system = "rerun_sdk"},

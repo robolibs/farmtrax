@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.7] - 2026-01-04
+
+### <!-- 1 -->🐛 Bug Fixes
+
+- Update dependency versions for Robolibs projects
+
 ## [0.0.6] - 2026-01-03
 
 ### <!-- 1 -->🐛 Bug Fixes
