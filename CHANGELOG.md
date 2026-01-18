@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.8] - 2026-01-18
+
+### <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Transition to CMake from Xmake
+
 ## [0.0.7] - 2026-01-04
 
 ### <!-- 1 -->🐛 Bug Fixes
