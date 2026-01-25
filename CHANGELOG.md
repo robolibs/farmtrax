@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.10] - 2026-01-25
+
+### <!-- 0 -->⛰️  Features
+
+- Add core Farmtrax facade for easier integration
+
 ## [0.0.8] - 2026-01-18
 
 ### <!-- 7 -->⚙️ Miscellaneous Tasks
