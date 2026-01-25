@@ -7,14 +7,9 @@
 
 #include "rerun/recording_stream.hpp"
 
-#include "farmtrax/avoid.hpp"
-#include "farmtrax/divy.hpp"
-#include "farmtrax/field.hpp"
-#include "farmtrax/graph.hpp"
-#include "rerun.hpp"
-#include "thread"
-
+#include "farmtrax/farmtrax.hpp"
 #include "farmtrax/utils/visualize.hpp"
+#include "rerun.hpp"
 
 int main() {
     auto rec = std::make_shared<rerun::RecordingStream>("farmtrax", "space");
@@ -44,9 +39,9 @@ int main() {
         poly.vertices.push_back(datapod::Point{enu.east(), enu.north(), enu.up()});
     }
 
-    farmtrax::Field field(poly, world_datum, true, 100000.0);
-
-    field.gen_field(4.0, 0.0, 3);
+    farmtrax::Farmtrax ft;
+    ft.set_field(poly, world_datum);
+    ft.generate_field(4.0, 0.0, 3);
     size_t num_machines = 2;
 
     // Create some example obstacles (e.g., trees, buildings, water bodies)
@@ -84,25 +79,22 @@ int main() {
     // Add the obstacle to the obstacles vector
     obstacles.push_back(obstacle1);
 
-    // Create obstacle avoider
-    farmtrax::ObstacleAvoider avoider(obstacles, world_datum);
-
     std::cout << "Created " << obstacles.size() << " obstacles\n";
 
     // Visualize obstacles
     farmtrax::visualize::show_obstacles(obstacles, rec);
 
-    auto part_cnt = field.get_parts().size();
+    auto part_cnt = ft.field()->get_parts().size();
     std::cout << "\n=== Field Processing with Area-Based Partitioning ===\n";
     std::cout << "Total field parts: " << part_cnt << "\n";
 
-    farmtrax::visualize::show_field(field, rec, world_datum);
+    farmtrax::visualize::show_field(*ft.field(), rec, world_datum);
     std::this_thread::sleep_for(std::chrono::seconds(2));
 
-    for (size_t f = 0; f < field.get_parts().size(); f++) {
+    for (size_t f = 0; f < ft.field()->get_parts().size(); f++) {
         std::cout << "\n--- Processing Field Part " << (f + 1) << " of " << part_cnt << " ---\n";
 
-        const auto &part = field.get_parts()[f];
+        const auto &part = ft.field()->get_parts()[f];
 
         // Calculate part area using datapod polygon
         auto part_area = std::abs(part.boundary.polygon.area());
@@ -110,7 +102,7 @@ int main() {
                   << (part_area / 10000.0) << " hectares), " << part.headlands.size() << " headlands, "
                   << part.swaths.size() << " swaths\n";
 
-        auto fieldPtr = std::make_shared<farmtrax::Part>(field.get_parts()[f]);
+        auto fieldPtr = std::make_shared<farmtrax::Part>(ft.field()->get_parts()[f]);
         farmtrax::Divy divy(fieldPtr, farmtrax::DivisionType::ALTERNATE, num_machines);
         divy.compute_division();
 
@@ -135,7 +127,7 @@ int main() {
             std::cout << "Machine " << m << " original swaths: " << res.swaths_per_machine.at(m).size() << "\n";
 
             // Apply obstacle avoidance with 2.0 meter inflation distance
-            auto avoided_swaths = avoider.avoid(res.swaths_per_machine.at(m), 2.0f);
+            auto avoided_swaths = ft.avoid_obstacles_for_part(obstacles, 2.0f, f);
 
             // Create Nety instance from obstacle-avoided swaths (now filters to only SwathType::Swath)
             farmtrax::Nety nety(avoided_swaths);

@@ -1,5 +1,4 @@
-#include "farmtrax/turners/dubins.hpp"
-#include "farmtrax/turners/reeds_shepp.hpp"
+#include "farmtrax/farmtrax.hpp"
 #include "farmtrax/utils/visualize.hpp"
 #include <cstdlib>
 #include <ctime>
