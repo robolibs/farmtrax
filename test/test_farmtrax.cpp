@@ -46,4 +46,21 @@ TEST_CASE("Farmtrax facade end-to-end") {
     // Nety construction through the facade should work.
     auto nety = ft.make_nety_from_part(0);
     CHECK(!nety.get_swaths().empty());
+
+    // Build a drivable tour using turners + headland-following.
+    farmtrax::TurnPlannerConfig cfg;
+    cfg.swath_width = 10.0;
+    cfg.min_turning_radius = 2.0;
+    cfg.step_size = 0.2;
+    cfg.headland_threshold_rows = 2.0;
+    auto tour = ft.build_tour(0, nety.get_swaths(), cfg);
+    CHECK(tour.size() >= nety.get_swaths().size());
+    bool has_polyline = false;
+    for (const auto &s : tour) {
+        if (s->type == farmtrax::SwathType::Connection && s->points.size() >= 2) {
+            has_polyline = true;
+            break;
+        }
+    }
+    CHECK(has_polyline);
 }
