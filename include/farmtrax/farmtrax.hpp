@@ -8,6 +8,7 @@
 #include "farmtrax/divy.hpp"
 #include "farmtrax/field.hpp"
 #include "farmtrax/graph.hpp"
+#include "farmtrax/tour.hpp"
 #include "farmtrax/turners/dubins.hpp"
 #include "farmtrax/turners/reeds_shepp.hpp"
 #include "farmtrax/turners/sharper.hpp"
@@ -145,6 +146,19 @@ namespace farmtrax {
                                                                const std::string &pattern = "auto") const {
             turners::Sharper planner(min_turning_radius, machine_length, machine_width);
             return planner.plan_sharp_turn(start, end, pattern);
+        }
+
+        /**
+         * @brief Build a drivable tour for an already ordered swath list.
+         */
+        inline std::vector<std::shared_ptr<const Swath>>
+        build_tour(std::size_t part_idx, const std::vector<std::shared_ptr<const Swath>> &ordered_swaths,
+                   const TurnPlannerConfig &cfg) const {
+            require_field();
+            if (part_idx >= field_->get_parts().size()) {
+                throw std::out_of_range("part_idx");
+            }
+            return TourBuilder::build(field_->get_parts()[part_idx], ordered_swaths, cfg);
         }
 
       private:

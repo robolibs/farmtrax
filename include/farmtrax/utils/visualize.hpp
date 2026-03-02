@@ -263,10 +263,17 @@ namespace farmtrax {
                     prefix = "swath";
                 }
 
-                // Visualize the swath line
-                std::vector<std::array<float, 3>> line_points = {
-                    {float(swath->getHead().x), float(swath->getHead().y), 0.3f},
-                    {float(swath->getTail().x), float(swath->getTail().y), 0.3f}};
+                // Visualize the swath geometry: polyline if available, otherwise the line segment
+                std::vector<std::array<float, 3>> line_points;
+                if (!swath->points.empty()) {
+                    line_points.reserve(swath->points.size());
+                    for (const auto &p : swath->points) {
+                        line_points.push_back({float(p.x), float(p.y), 0.3f});
+                    }
+                } else {
+                    line_points = {{float(swath->getHead().x), float(swath->getHead().y), 0.3f},
+                                   {float(swath->getTail().x), float(swath->getTail().y), 0.3f}};
+                }
 
                 rec->log_static("/tour/machine" + std::to_string(machine_id) + "/" + prefix + std::to_string(i),
                                 rerun::LineStrips3D(rerun::components::LineStrip3D(line_points))
@@ -329,10 +336,17 @@ namespace farmtrax {
                     prefix = "swath";
                 }
 
-                // Visualize the swath line
-                std::vector<std::array<float, 3>> line_points = {
-                    {float(swath->getHead().x), float(swath->getHead().y), 0.3f},
-                    {float(swath->getTail().x), float(swath->getTail().y), 0.3f}};
+                // Visualize the swath geometry: polyline if available, otherwise the line segment
+                std::vector<std::array<float, 3>> line_points;
+                if (!swath->points.empty()) {
+                    line_points.reserve(swath->points.size());
+                    for (const auto &p : swath->points) {
+                        line_points.push_back({float(p.x), float(p.y), 0.3f});
+                    }
+                } else {
+                    line_points = {{float(swath->getHead().x), float(swath->getHead().y), 0.3f},
+                                   {float(swath->getTail().x), float(swath->getTail().y), 0.3f}};
+                }
 
                 rec->log_static("/part" + std::to_string(part_id) + "/tour/machine" + std::to_string(machine_id) + "/" +
                                     prefix + std::to_string(i),
